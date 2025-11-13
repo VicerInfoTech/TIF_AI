@@ -1,0 +1,18 @@
+{
+  "databases": {
+    "medical_db_prod": {
+      "connection_string": "postgresql://postgres:Sevina@localhost:5432/Attendance_sys",
+      "ddl_file": "config/schemas/medical_db_prod.txt",
+      "description": "Employee Attendance Production Database",
+      "max_rows": 1000,
+      "query_timeout": 30
+    },
+    "avamed_db": {
+      "connection_string": "jdbc:sqlserver://172.16.0.241:1433;databaseName=AvaMed;user=avareadonly;password=Admin@2025;",
+      "ddl_file": "config/schemas/avamed_db.txt",
+      "description": "AvaMed Database",
+      "max_rows": 500,
+      "query_timeout": 20
+    }
+  }
+}

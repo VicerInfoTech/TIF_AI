@@ -1,0 +1,5098 @@
+{
+  "metadata": {
+    "database_name": "AvaMed",
+    "extracted_at": "2025-11-13T10:10:56.241828+00:00",
+    "statistics": {
+      "total_tables": 48,
+      "total_columns": 459,
+      "total_relationships": 91
+    }
+  },
+  "tables": {
+    "BadState": {
+      "columns": {
+        "BadStateId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "State": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Description": {
+          "type": "varchar(250)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsCGM": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Bad state",
+      "row_count_estimate": 20
+    },
+    "BoxMaster": {
+      "columns": {
+        "BoxMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "BoxSize": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "BoxWeight": {
+          "type": "numeric(5, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CriticalLevel": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ParLevel": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReorderLevel": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Box",
+      "row_count_estimate": 3
+    },
+    "BoxTransaction": {
+      "columns": {
+        "BoxTransactionId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "TransactionDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "BoxMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "TransactionType": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Qty": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "RefNo": {
+          "type": "varchar(20)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Notes": {
+          "type": "varchar(250)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Box transaction",
+      "row_count_estimate": 60051
+    },
+    "BRACES": {
+      "columns": {
+        "BRACE_ID": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "BRACE_NAME": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "B r a c e s",
+      "row_count_estimate": 8
+    },
+    "BRACES_CODE": {
+      "columns": {
+        "BRACE_CODE_ID": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "BRACE_ID": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "HCPCS_CODE": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IS_ADDON": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "B r a c e s c o d e",
+      "row_count_estimate": 335
+    },
+    "ClientInvoice": {
+      "columns": {
+        "ClientInvoiceId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "CompanyId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "StartDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "EndDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PaymentStatus": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PaymentMode": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PaymentAmount": {
+          "type": "numeric(18, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PaymentDate": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PaymentRefId": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsManual": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Client invoice",
+      "row_count_estimate": 1934
+    },
+    "ClientInvoiceDispense": {
+      "columns": {
+        "ClientInvoiceDispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "ClientInvoiceId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Client invoice dispense",
+      "row_count_estimate": 57489
+    },
+    "ClientInvoicePayment": {
+      "columns": {
+        "ClientInvoicePaymentId": {
+          "type": "bigint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "ClientInvoiceId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PaymentMode": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PaymentAmount": {
+          "type": "numeric(18, 2)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PaymentDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReferenceNumber": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReferenceId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Client invoice payment",
+      "row_count_estimate": 1368
+    },
+    "ClientInvoiceReturnDispense": {
+      "columns": {
+        "ClientInvoiceReturnDispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "ClientInvoiceId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReturnDispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Client invoice return dispense",
+      "row_count_estimate": 11427
+    },
+    "CompanyBadState": {
+      "columns": {
+        "CompanyBadStateId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "StateCode": {
+          "type": "varchar(10)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CompanyId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsCGM": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Company bad state",
+      "row_count_estimate": 82
+    },
+    "CompanyMaster": {
+      "columns": {
+        "CompanyMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "Name": {
+          "type": "varchar(250)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Address1": {
+          "type": "varchar(250)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Address2": {
+          "type": "varchar(250)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "City": {
+          "type": "varchar(100)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "StateId": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Zipcode": {
+          "type": "varchar(10)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Taxno": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "NPI": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ContactPerson": {
+          "type": "varchar(250)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ContactNumber": {
+          "type": "varchar(250)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Email": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UserId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShippingCharges": {
+          "type": "numeric(7, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReturnShippingCharges": {
+          "type": "numeric(7, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SendDeliveryNotification": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "NotificationEmail": {
+          "type": "varchar(1000)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsSunWorking": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsMonWorking": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsTueWorking": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsWedWorking": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsThuWorking": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsFriWorking": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsSatWorking": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "WorkingStartTime": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "WorkingEndTime": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsAQBaseAccount": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Logo": {
+          "type": "varchar(250)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Company",
+      "row_count_estimate": 67
+    },
+    "CompanyPrice": {
+      "columns": {
+        "CompanyPriceId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "MasterProductId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CompanyId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Price": {
+          "type": "numeric(18, 2)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Company price",
+      "row_count_estimate": 1826
+    },
+    "CompanySalesPerson": {
+      "columns": {
+        "CompanySalesPersonId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "CompanyMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SalesPersonName": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SalesPersonPhoneNo": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Company sales person",
+      "row_count_estimate": 1
+    },
+    "DeliveryNotificationLog": {
+      "columns": {
+        "DeliveryNotificationLogId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "DispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CompanyMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DeliveryDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Delivery notification",
+      "row_count_estimate": 6070
+    },
+    "Dispense": {
+      "columns": {
+        "DispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "DispenseDate": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PatientId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Note": {
+          "type": "varchar",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DispenseStatusId": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShipmentStatus": {
+          "type": "varchar(255)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "TrackingNumber": {
+          "type": "varchar(200)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "OrderNumber": {
+          "type": "varchar(255)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "OrderedDate": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "RejectionDate": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShippingCharge": {
+          "type": "numeric(7, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShiprushCharges": {
+          "type": "numeric(10, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "BoxCharges": {
+          "type": "numeric(5, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SalesPerson": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "BoxSize": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShiprushBoxSize": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UploadBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReUploadBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DispensedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShippedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "RejectedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReturnBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShippedDate": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "RejectionReason": {
+          "type": "varchar(500)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsTrackingNoExpired": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "LastVerifiedDate": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShippingStatus": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Dispense",
+      "row_count_estimate": 57792
+    },
+    "DISPENSE_EMAIL_LOG": {
+      "columns": {
+        "EMAIL_LOG_ID": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "COMPANY_ID": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "D i s p e n s e e m a i l l o g",
+      "row_count_estimate": 0
+    },
+    "DispenseDetailsConvertionHistory": {
+      "columns": {
+        "DispenseDetailsConvertionHistoryId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "DispenseProductDetailId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DispenseId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Old_BillingCharge": {
+          "type": "decimal(18, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Old_Modifier1": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Old_Modifier2": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Old_Modifier3": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Old_Modifier4": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Old_Size": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Old_WholeSaleCost": {
+          "type": "decimal(8, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Old_QuantityToDispense": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Old_MasterProductId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "New_BillingCharge": {
+          "type": "decimal(18, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "New_Modifier1": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "New_Modifier2": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "New_Modifier3": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "New_Modifier4": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "New_Size": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "New_WholeSaleCost": {
+          "type": "decimal(8, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "New_QuantityToDispense": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "New_MasterProductId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Dispense details convertion",
+      "row_count_estimate": 28
+    },
+    "DispenseError": {
+      "columns": {
+        "DispenseErrorId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "DispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ErrorMessage": {
+          "type": "varchar(1000)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DispenseProductDetailId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Dispense error",
+      "row_count_estimate": 476
+    },
+    "DispenseHistoryComment": {
+      "columns": {
+        "DispenseHistoryCommentId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "Comment": {
+          "type": "varchar(500)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Dispense comment",
+      "row_count_estimate": 370
+    },
+    "DispenseProductDetail": {
+      "columns": {
+        "DispenseProductDetailId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "DispenseId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "BillingCharge": {
+          "type": "decimal(18, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Modifier1": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Modifier2": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Modifier3": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Modifier4": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Size": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "WholeSaleCost": {
+          "type": "numeric(8, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "QuantityToDispense": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "MasterProductId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SupplierMasterId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "TransactionId": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsReturn": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Dispense product",
+      "row_count_estimate": 153727
+    },
+    "EmailLog": {
+      "columns": {
+        "EMAIL_LOG_ID": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "EMAIL_TIME": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "EmailType": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Email",
+      "row_count_estimate": 4406
+    },
+    "Gender": {
+      "columns": {
+        "GenderId": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "GenderName": {
+          "type": "varchar(100)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "TypeId": {
+          "type": "tinyint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Gender",
+      "row_count_estimate": 3
+    },
+    "HCPCS_CODE_MAST": {
+      "columns": {
+        "HCPCS_CODE_ID": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "HCPCS_CODE": {
+          "type": "varchar(10)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "H c p c s c o d e m a s t",
+      "row_count_estimate": 28
+    },
+    "InventoryCheckListEmail": {
+      "columns": {
+        "InventoryCheckListEmail": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "EmailDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Inventory check list email",
+      "row_count_estimate": 185
+    },
+    "InventoryProduct": {
+      "columns": {
+        "InventoryProductId": {
+          "type": "bigint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "MasterProductId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ParLevel": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReorderLevel": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CriticalLevel": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Inventory product",
+      "row_count_estimate": 51
+    },
+    "InventoryTransaction": {
+      "columns": {
+        "InventoryTransactionId": {
+          "type": "bigint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "InventoryProductId": {
+          "type": "bigint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "MasterProductId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Type": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Qty": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Date": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Remarks": {
+          "type": "varchar(500)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReferenceNumber": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "InwardOutwardId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DispenseProductDetailId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "RejectedDispenseProductDetailId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReturnDispenseProductDetailId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SupplierMasterId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Inventory transaction",
+      "row_count_estimate": 194530
+    },
+    "InwardOutward": {
+      "columns": {
+        "InwardOutwardId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "Date": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReferenceNumber": {
+          "type": "varchar(100)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Note": {
+          "type": "varchar(500)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Type": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Inward outward",
+      "row_count_estimate": 1067
+    },
+    "LoginFailure": {
+      "columns": {
+        "LoginFailureId": {
+          "type": "bigint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "Username": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Login failure",
+      "row_count_estimate": 1
+    },
+    "LoginHistory": {
+      "columns": {
+        "LoginHistoryId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "UserMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SessionId": {
+          "type": "varchar(500)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Status": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "LoggedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "LoggedOut": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "LoggedOutBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Login",
+      "row_count_estimate": 21837
+    },
+    "Menu": {
+      "columns": {
+        "MenuId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "MenuName": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "MenuNameId": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PageURL": {
+          "type": "varchar(100)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Icon": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ParentId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DisplayOrder": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsChild": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsDefault": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsShowSuperAdmin": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Menu",
+      "row_count_estimate": 42
+    },
+    "MenuRole": {
+      "columns": {
+        "MenuRoleId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "MenuId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "RoleId": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Menu role",
+      "row_count_estimate": 24
+    },
+    "Modifier": {
+      "columns": {
+        "ModifierId": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "Code": {
+          "type": "varchar(4)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Modifier",
+      "row_count_estimate": 27
+    },
+    "OTPMaster": {
+      "columns": {
+        "OTPId": {
+          "type": "bigint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "OTP": {
+          "type": "varchar(6)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UserId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsExpired": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "O t p",
+      "row_count_estimate": 22
+    },
+    "Patient": {
+      "columns": {
+        "PatientId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "SSN": {
+          "type": "varchar(20)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "AccId": {
+          "type": "varchar(25)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "FirstName": {
+          "type": "varchar(100)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "MiddleName": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "LastName": {
+          "type": "varchar(100)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DateOfBirth": {
+          "type": "date",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Gender": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Address1": {
+          "type": "varchar(500)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Address2": {
+          "type": "varchar(500)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "City": {
+          "type": "varchar(150)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "StateId": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Zipcode": {
+          "type": "varchar(10)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PhoneHome": {
+          "type": "varchar(20)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PhoneBusiness": {
+          "type": "varchar(20)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PhoneMobile": {
+          "type": "varchar(20)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "MaritialStatus": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Email": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "AddressVerificationStatus": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "AddressVerificationMessage": {
+          "type": "varchar(300)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CompanyId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Patient",
+      "row_count_estimate": 56880
+    },
+    "PaymentsMaster": {
+      "columns": {
+        "PaymentsMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "CompanyId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PaidDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Amount": {
+          "type": "numeric(18, 2)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Mode": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Comments": {
+          "type": "varchar(300)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Payments",
+      "row_count_estimate": 419
+    },
+    "ProductMaster": {
+      "columns": {
+        "MasterProductId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "ProductName": {
+          "type": "varchar(200)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Code": {
+          "type": "varchar(20)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Pkg": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Side": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Size": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Modifier1": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Modifier2": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Modifier3": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Modifier4": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "GenderId": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Color": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "HCPCSCode": {
+          "type": "varchar(20)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "WholesaleCost": {
+          "type": "numeric(18, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "COG": {
+          "type": "numeric(18, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Service": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Description": {
+          "type": "varchar(500)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Location": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ProductWeight": {
+          "type": "varchar(25)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SupplierMasterId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Product",
+      "row_count_estimate": 51
+    },
+    "PurchaseOrder": {
+      "columns": {
+        "PurchaseOrderId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "Status": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "StatusChangeDate": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SupplierMasterId": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Purchase order",
+      "row_count_estimate": 174
+    },
+    "PurchaseOrderProducts": {
+      "columns": {
+        "PurchaseOrderProductsId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "PurchaseOrderId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "MasterProductId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Qty": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReceivedQty": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Price": {
+          "type": "numeric(18, 2)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Purchase order products",
+      "row_count_estimate": 1027
+    },
+    "RefrenceData": {
+      "columns": {
+        "RefrenceDataId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "RefrenceDataType": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "RefrenceDataValue": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Refrence data",
+      "row_count_estimate": 7
+    },
+    "ReturnDispense": {
+      "columns": {
+        "ReturnDispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "DispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Status": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ReceivedDate": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Trackingnumber": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShipmentStatus": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ShippingCharge": {
+          "type": "numeric(7, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "LastVerifiedDate": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsTrackingNoExpired": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsPartialReturn": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Return dispense",
+      "row_count_estimate": 15238
+    },
+    "Role": {
+      "columns": {
+        "RoleId": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "RoleName": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Role",
+      "row_count_estimate": 3
+    },
+    "ShiprushDetails": {
+      "columns": {
+        "ShiprushDetailId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "DispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsReturn": {
+          "type": "bool",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Shiprush details",
+      "row_count_estimate": 66289
+    },
+    "ShiprushFile": {
+      "columns": {
+        "ShiprushFileId": {
+          "type": "bigint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "ShiprushDetailId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "DispenseId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "TrackingNo": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ARSType": {
+          "type": "varchar(20)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "FileName": {
+          "type": "varchar(250)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedDate": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Shiprush file",
+      "row_count_estimate": 26788
+    },
+    "State": {
+      "columns": {
+        "StateId": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "StateCode": {
+          "type": "varchar(10)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "StateName": {
+          "type": "varchar(100)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "State",
+      "row_count_estimate": 58
+    },
+    "SupplierMaster": {
+      "columns": {
+        "SupplierMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "SupplierName": {
+          "type": "varchar(250)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "PhoneNo": {
+          "type": "varchar(15)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "EmailAddress": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "AddressLine1": {
+          "type": "varchar(250)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "AddressLine2": {
+          "type": "varchar(250)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "City": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "StateId": {
+          "type": "smallint",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Zipcode": {
+          "type": "varchar(10)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "MinimumOrderValue": {
+          "type": "numeric(18, 2)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdateOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Supplier",
+      "row_count_estimate": 3
+    },
+    "SupplierProduct": {
+      "columns": {
+        "SupplierProductId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "SupplierMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ProductId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "WholeSaleCost": {
+          "type": "numeric(18, 2)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "SKU": {
+          "type": "varchar(50)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ItemDescription": {
+          "type": "varchar(1000)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Supplier product",
+      "row_count_estimate": 95
+    },
+    "sysdiagrams": {
+      "columns": {
+        "name": {
+          "type": "null",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "principal_id": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "diagram_id": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "version": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "definition": {
+          "type": "varbinary",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "Sysdiagrams",
+      "row_count_estimate": 0
+    },
+    "UserMaster": {
+      "columns": {
+        "UserMasterId": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": true,
+          "default": null
+        },
+        "Username": {
+          "type": "varchar(100)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UserPassword": {
+          "type": "varchar(500)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "RoleId": {
+          "type": "smallint",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "LastName": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "FirstName": {
+          "type": "varchar(100)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "ContactNumber": {
+          "type": "varchar(50)",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "Email": {
+          "type": "varchar(100)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IsActive": {
+          "type": "bool",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedBy": {
+          "type": "int",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "CreatedOn": {
+          "type": "datetime",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedBy": {
+          "type": "int",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "UpdatedOn": {
+          "type": "datetime",
+          "nullable": true,
+          "is_primary_key": false,
+          "default": null
+        },
+        "IP": {
+          "type": "varchar(30)",
+          "nullable": false,
+          "is_primary_key": false,
+          "default": null
+        }
+      },
+      "description": "User",
+      "row_count_estimate": 93
+    }
+  },
+  "relationships": {
+    "BoxMaster": [
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "BoxTransaction": [
+      {
+        "columns": [
+          "BoxMasterId"
+        ],
+        "references": {
+          "table": "BoxMaster",
+          "columns": [
+            "BoxMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "BRACES_CODE": [
+      {
+        "columns": [
+          "BRACE_ID"
+        ],
+        "references": {
+          "table": "BRACES",
+          "columns": [
+            "BRACE_ID"
+          ]
+        }
+      }
+    ],
+    "ClientInvoice": [
+      {
+        "columns": [
+          "CompanyId"
+        ],
+        "references": {
+          "table": "CompanyMaster",
+          "columns": [
+            "CompanyMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "ClientInvoiceDispense": [
+      {
+        "columns": [
+          "ClientInvoiceId"
+        ],
+        "references": {
+          "table": "ClientInvoice",
+          "columns": [
+            "ClientInvoiceId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "DispenseId"
+        ],
+        "references": {
+          "table": "Dispense",
+          "columns": [
+            "DispenseId"
+          ]
+        }
+      }
+    ],
+    "ClientInvoicePayment": [
+      {
+        "columns": [
+          "ReferenceId"
+        ],
+        "references": {
+          "table": "PaymentsMaster",
+          "columns": [
+            "PaymentsMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "ClientInvoiceId"
+        ],
+        "references": {
+          "table": "ClientInvoice",
+          "columns": [
+            "ClientInvoiceId"
+          ]
+        }
+      }
+    ],
+    "ClientInvoiceReturnDispense": [
+      {
+        "columns": [
+          "ClientInvoiceId"
+        ],
+        "references": {
+          "table": "ClientInvoice",
+          "columns": [
+            "ClientInvoiceId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "ReturnDispenseId"
+        ],
+        "references": {
+          "table": "ReturnDispense",
+          "columns": [
+            "ReturnDispenseId"
+          ]
+        }
+      }
+    ],
+    "CompanyBadState": [
+      {
+        "columns": [
+          "CompanyId"
+        ],
+        "references": {
+          "table": "CompanyMaster",
+          "columns": [
+            "CompanyMasterId"
+          ]
+        }
+      }
+    ],
+    "CompanyMaster": [
+      {
+        "columns": [
+          "StateId"
+        ],
+        "references": {
+          "table": "State",
+          "columns": [
+            "StateId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UserId"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "CompanyPrice": [
+      {
+        "columns": [
+          "CompanyId"
+        ],
+        "references": {
+          "table": "CompanyMaster",
+          "columns": [
+            "CompanyMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "MasterProductId"
+        ],
+        "references": {
+          "table": "ProductMaster",
+          "columns": [
+            "MasterProductId"
+          ]
+        }
+      }
+    ],
+    "CompanySalesPerson": [
+      {
+        "columns": [
+          "CompanyMasterId"
+        ],
+        "references": {
+          "table": "CompanyMaster",
+          "columns": [
+            "CompanyMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "DeliveryNotificationLog": [
+      {
+        "columns": [
+          "CompanyMasterId"
+        ],
+        "references": {
+          "table": "CompanyMaster",
+          "columns": [
+            "CompanyMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "DispenseId"
+        ],
+        "references": {
+          "table": "Dispense",
+          "columns": [
+            "DispenseId"
+          ]
+        }
+      }
+    ],
+    "Dispense": [
+      {
+        "columns": [
+          "DispensedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "RejectedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "ReturnBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "ReUploadBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "ShippedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UploadBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "PatientId"
+        ],
+        "references": {
+          "table": "Patient",
+          "columns": [
+            "PatientId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "DISPENSE_EMAIL_LOG": [
+      {
+        "columns": [
+          "COMPANY_ID"
+        ],
+        "references": {
+          "table": "CompanyMaster",
+          "columns": [
+            "CompanyMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "DispenseDetailsConvertionHistory": [
+      {
+        "columns": [
+          "DispenseProductDetailId"
+        ],
+        "references": {
+          "table": "DispenseProductDetail",
+          "columns": [
+            "DispenseProductDetailId"
+          ]
+        }
+      }
+    ],
+    "DispenseError": [
+      {
+        "columns": [
+          "DispenseProductDetailId"
+        ],
+        "references": {
+          "table": "DispenseProductDetail",
+          "columns": [
+            "DispenseProductDetailId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "DispenseId"
+        ],
+        "references": {
+          "table": "Dispense",
+          "columns": [
+            "DispenseId"
+          ]
+        }
+      }
+    ],
+    "DispenseHistoryComment": [
+      {
+        "columns": [
+          "DispenseId"
+        ],
+        "references": {
+          "table": "Dispense",
+          "columns": [
+            "DispenseId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "DispenseProductDetail": [
+      {
+        "columns": [
+          "SupplierMasterId"
+        ],
+        "references": {
+          "table": "SupplierMaster",
+          "columns": [
+            "SupplierMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "DispenseId"
+        ],
+        "references": {
+          "table": "Dispense",
+          "columns": [
+            "DispenseId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "MasterProductId"
+        ],
+        "references": {
+          "table": "ProductMaster",
+          "columns": [
+            "MasterProductId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "InventoryProduct": [
+      {
+        "columns": [
+          "MasterProductId"
+        ],
+        "references": {
+          "table": "ProductMaster",
+          "columns": [
+            "MasterProductId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "InventoryTransaction": [
+      {
+        "columns": [
+          "RejectedDispenseProductDetailId"
+        ],
+        "references": {
+          "table": "DispenseProductDetail",
+          "columns": [
+            "DispenseProductDetailId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "ReturnDispenseProductDetailId"
+        ],
+        "references": {
+          "table": "DispenseProductDetail",
+          "columns": [
+            "DispenseProductDetailId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "InventoryProductId"
+        ],
+        "references": {
+          "table": "InventoryProduct",
+          "columns": [
+            "InventoryProductId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "InwardOutwardId"
+        ],
+        "references": {
+          "table": "InwardOutward",
+          "columns": [
+            "InwardOutwardId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "MasterProductId"
+        ],
+        "references": {
+          "table": "ProductMaster",
+          "columns": [
+            "MasterProductId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "SupplierMasterId"
+        ],
+        "references": {
+          "table": "SupplierMaster",
+          "columns": [
+            "SupplierMasterId"
+          ]
+        }
+      }
+    ],
+    "LoginHistory": [
+      {
+        "columns": [
+          "UserMasterId"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "LoggedOutBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "MenuRole": [
+      {
+        "columns": [
+          "MenuId"
+        ],
+        "references": {
+          "table": "Menu",
+          "columns": [
+            "MenuId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "RoleId"
+        ],
+        "references": {
+          "table": "Role",
+          "columns": [
+            "RoleId"
+          ]
+        }
+      }
+    ],
+    "OTPMaster": [
+      {
+        "columns": [
+          "UserId"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "Patient": [
+      {
+        "columns": [
+          "CompanyId"
+        ],
+        "references": {
+          "table": "CompanyMaster",
+          "columns": [
+            "CompanyMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "StateId"
+        ],
+        "references": {
+          "table": "State",
+          "columns": [
+            "StateId"
+          ]
+        }
+      }
+    ],
+    "PaymentsMaster": [
+      {
+        "columns": [
+          "CompanyId"
+        ],
+        "references": {
+          "table": "CompanyMaster",
+          "columns": [
+            "CompanyMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "ProductMaster": [
+      {
+        "columns": [
+          "GenderId"
+        ],
+        "references": {
+          "table": "Gender",
+          "columns": [
+            "GenderId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "SupplierMasterId"
+        ],
+        "references": {
+          "table": "SupplierMaster",
+          "columns": [
+            "SupplierMasterId"
+          ]
+        }
+      }
+    ],
+    "PurchaseOrder": [
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "SupplierMasterId"
+        ],
+        "references": {
+          "table": "SupplierMaster",
+          "columns": [
+            "SupplierMasterId"
+          ]
+        }
+      }
+    ],
+    "PurchaseOrderProducts": [
+      {
+        "columns": [
+          "MasterProductId"
+        ],
+        "references": {
+          "table": "ProductMaster",
+          "columns": [
+            "MasterProductId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "PurchaseOrderId"
+        ],
+        "references": {
+          "table": "PurchaseOrder",
+          "columns": [
+            "PurchaseOrderId"
+          ]
+        }
+      }
+    ],
+    "ReturnDispense": [
+      {
+        "columns": [
+          "DispenseId"
+        ],
+        "references": {
+          "table": "Dispense",
+          "columns": [
+            "DispenseId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "ShiprushDetails": [
+      {
+        "columns": [
+          "DispenseId"
+        ],
+        "references": {
+          "table": "Dispense",
+          "columns": [
+            "DispenseId"
+          ]
+        }
+      }
+    ],
+    "ShiprushFile": [
+      {
+        "columns": [
+          "DispenseId"
+        ],
+        "references": {
+          "table": "Dispense",
+          "columns": [
+            "DispenseId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "ShiprushDetailId"
+        ],
+        "references": {
+          "table": "ShiprushDetails",
+          "columns": [
+            "ShiprushDetailId"
+          ]
+        }
+      }
+    ],
+    "SupplierMaster": [
+      {
+        "columns": [
+          "StateId"
+        ],
+        "references": {
+          "table": "State",
+          "columns": [
+            "StateId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "UpdatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "SupplierProduct": [
+      {
+        "columns": [
+          "ProductId"
+        ],
+        "references": {
+          "table": "ProductMaster",
+          "columns": [
+            "MasterProductId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "SupplierMasterId"
+        ],
+        "references": {
+          "table": "SupplierMaster",
+          "columns": [
+            "SupplierMasterId"
+          ]
+        }
+      },
+      {
+        "columns": [
+          "CreatedBy"
+        ],
+        "references": {
+          "table": "UserMaster",
+          "columns": [
+            "UserMasterId"
+          ]
+        }
+      }
+    ],
+    "UserMaster": [
+      {
+        "columns": [
+          "RoleId"
+        ],
+        "references": {
+          "table": "Role",
+          "columns": [
+            "RoleId"
+          ]
+        }
+      }
+    ]
+  },
+  "keyword_map": {
+    "bad": [
+      "BadState",
+      "CompanyBadState"
+    ],
+    "description": [
+      "BadState",
+      "ProductMaster",
+      "SupplierProduct"
+    ],
+    "state": [
+      "BadState",
+      "CompanyBadState",
+      "CompanyMaster",
+      "Patient",
+      "State",
+      "SupplierMaster"
+    ],
+    "box": [
+      "BoxMaster",
+      "BoxTransaction",
+      "Dispense"
+    ],
+    "level": [
+      "BoxMaster",
+      "InventoryProduct"
+    ],
+    "par": [
+      "BoxMaster",
+      "InventoryProduct"
+    ],
+    "active": [
+      "BoxMaster",
+      "ClientInvoice",
+      "CompanyMaster",
+      "CompanySalesPerson",
+      "Dispense",
+      "DispenseProductDetail",
+      "Gender",
+      "InventoryProduct",
+      "InventoryTransaction",
+      "InwardOutward",
+      "Menu",
+      "MenuRole",
+      "Modifier",
+      "Patient",
+      "PaymentsMaster",
+      "ProductMaster",
+      "PurchaseOrder",
+      "RefrenceData",
+      "Role",
+      "State",
+      "SupplierMaster",
+      "UserMaster"
+    ],
+    "created": [
+      "BoxMaster",
+      "BoxTransaction",
+      "ClientInvoice",
+      "CompanyMaster",
+      "CompanySalesPerson",
+      "DISPENSE_EMAIL_LOG",
+      "DeliveryNotificationLog",
+      "Dispense",
+      "DispenseDetailsConvertionHistory",
+      "DispenseHistoryComment",
+      "DispenseProductDetail",
+      "InventoryProduct",
+      "InventoryTransaction",
+      "InwardOutward",
+      "LoginFailure",
+      "MenuRole",
+      "OTPMaster",
+      "Patient",
+      "PaymentsMaster",
+      "ProductMaster",
+      "PurchaseOrder",
+      "ReturnDispense",
+      "ShiprushDetails",
+      "ShiprushFile",
+      "State",
+      "SupplierMaster",
+      "SupplierProduct",
+      "UserMaster"
+    ],
+    "weight": [
+      "BoxMaster",
+      "ProductMaster"
+    ],
+    "size": [
+      "BoxMaster",
+      "Dispense",
+      "DispenseDetailsConvertionHistory",
+      "DispenseProductDetail",
+      "ProductMaster"
+    ],
+    "critical": [
+      "BoxMaster",
+      "InventoryProduct"
+    ],
+    "updated": [
+      "BoxMaster",
+      "ClientInvoice",
+      "CompanyMaster",
+      "CompanySalesPerson",
+      "Dispense",
+      "DispenseHistoryComment",
+      "DispenseProductDetail",
+      "InventoryProduct",
+      "InventoryTransaction",
+      "InwardOutward",
+      "Patient",
+      "PaymentsMaster",
+      "ProductMaster",
+      "PurchaseOrder",
+      "ReturnDispense",
+      "State",
+      "SupplierMaster",
+      "UserMaster"
+    ],
+    "reorder": [
+      "BoxMaster",
+      "InventoryProduct"
+    ],
+    "type": [
+      "BoxTransaction",
+      "EmailLog",
+      "Gender",
+      "InventoryTransaction",
+      "InwardOutward",
+      "RefrenceData",
+      "ShiprushFile"
+    ],
+    "qty": [
+      "BoxTransaction",
+      "InventoryTransaction",
+      "PurchaseOrderProducts"
+    ],
+    "ref": [
+      "BoxTransaction",
+      "ClientInvoice"
+    ],
+    "date": [
+      "BoxTransaction",
+      "ClientInvoice",
+      "ClientInvoicePayment",
+      "DeliveryNotificationLog",
+      "Dispense",
+      "InventoryCheckListEmail",
+      "InventoryTransaction",
+      "InwardOutward",
+      "MenuRole",
+      "OTPMaster",
+      "Patient",
+      "PaymentsMaster",
+      "PurchaseOrder",
+      "ReturnDispense",
+      "ShiprushDetails",
+      "ShiprushFile"
+    ],
+    "notes": [
+      "BoxTransaction"
+    ],
+    "transaction": [
+      "BoxTransaction",
+      "ClientInvoice",
+      "ClientInvoicePayment",
+      "DispenseProductDetail",
+      "InventoryTransaction"
+    ],
+    "amount": [
+      "ClientInvoice",
+      "ClientInvoicePayment",
+      "PaymentsMaster"
+    ],
+    "payment": [
+      "ClientInvoice",
+      "ClientInvoicePayment"
+    ],
+    "settlement": [
+      "ClientInvoice",
+      "ClientInvoicePayment"
+    ],
+    "client": [
+      "ClientInvoice",
+      "ClientInvoiceDispense",
+      "ClientInvoicePayment",
+      "ClientInvoiceReturnDispense",
+      "Dispense",
+      "Patient"
+    ],
+    "mode": [
+      "ClientInvoice",
+      "ClientInvoicePayment",
+      "PaymentsMaster"
+    ],
+    "end": [
+      "ClientInvoice",
+      "CompanyMaster"
+    ],
+    "status": [
+      "ClientInvoice",
+      "Dispense",
+      "LoginHistory",
+      "Patient",
+      "PurchaseOrder",
+      "ReturnDispense"
+    ],
+    "start": [
+      "ClientInvoice",
+      "CompanyMaster"
+    ],
+    "invoice": [
+      "ClientInvoice",
+      "ClientInvoiceDispense",
+      "ClientInvoicePayment",
+      "ClientInvoiceReturnDispense"
+    ],
+    "bill": [
+      "ClientInvoice",
+      "ClientInvoiceDispense",
+      "ClientInvoicePayment",
+      "ClientInvoiceReturnDispense"
+    ],
+    "statement": [
+      "ClientInvoice",
+      "ClientInvoiceDispense",
+      "ClientInvoicePayment",
+      "ClientInvoiceReturnDispense"
+    ],
+    "company": [
+      "ClientInvoice",
+      "CompanyBadState",
+      "CompanyMaster",
+      "CompanyPrice",
+      "CompanySalesPerson",
+      "DeliveryNotificationLog",
+      "Patient",
+      "PaymentsMaster"
+    ],
+    "manual": [
+      "ClientInvoice"
+    ],
+    "dispense": [
+      "ClientInvoiceDispense",
+      "ClientInvoiceReturnDispense",
+      "DeliveryNotificationLog",
+      "Dispense",
+      "DispenseDetailsConvertionHistory",
+      "DispenseError",
+      "DispenseHistoryComment",
+      "DispenseProductDetail",
+      "InventoryTransaction",
+      "Patient",
+      "ReturnDispense",
+      "ShiprushDetails",
+      "ShiprushFile",
+      "UserMaster"
+    ],
+    "order": [
+      "ClientInvoiceDispense",
+      "ClientInvoiceReturnDispense",
+      "DeliveryNotificationLog",
+      "Dispense",
+      "DispenseDetailsConvertionHistory",
+      "DispenseError",
+      "DispenseHistoryComment",
+      "DispenseProductDetail",
+      "InventoryTransaction",
+      "Menu",
+      "PurchaseOrder",
+      "PurchaseOrderProducts",
+      "ReturnDispense",
+      "ShiprushDetails",
+      "ShiprushFile",
+      "SupplierMaster"
+    ],
+    "shipment": [
+      "ClientInvoiceDispense",
+      "ClientInvoiceReturnDispense",
+      "DeliveryNotificationLog",
+      "Dispense",
+      "DispenseDetailsConvertionHistory",
+      "DispenseError",
+      "DispenseHistoryComment",
+      "DispenseProductDetail",
+      "InventoryTransaction",
+      "ReturnDispense",
+      "ShiprushDetails",
+      "ShiprushFile"
+    ],
+    "delivery": [
+      "ClientInvoiceDispense",
+      "ClientInvoiceReturnDispense",
+      "CompanyMaster",
+      "DeliveryNotificationLog",
+      "Dispense",
+      "DispenseDetailsConvertionHistory",
+      "DispenseError",
+      "DispenseHistoryComment",
+      "DispenseProductDetail",
+      "InventoryTransaction",
+      "ReturnDispense",
+      "ShiprushDetails",
+      "ShiprushFile"
+    ],
+    "reference": [
+      "ClientInvoicePayment",
+      "InventoryTransaction",
+      "InwardOutward"
+    ],
+    "number": [
+      "ClientInvoicePayment",
+      "CompanyMaster",
+      "Dispense",
+      "InventoryTransaction",
+      "InwardOutward",
+      "UserMaster"
+    ],
+    "return": [
+      "ClientInvoiceReturnDispense",
+      "CompanyMaster",
+      "Dispense",
+      "DispenseProductDetail",
+      "InventoryTransaction",
+      "ReturnDispense",
+      "ShiprushDetails"
+    ],
+    "code": [
+      "CompanyBadState",
+      "Modifier",
+      "ProductMaster",
+      "State"
+    ],
+    "zipcode": [
+      "CompanyMaster",
+      "Patient",
+      "SupplierMaster"
+    ],
+    "taxno": [
+      "CompanyMaster"
+    ],
+    "time": [
+      "CompanyMaster"
+    ],
+    "account": [
+      "CompanyMaster"
+    ],
+    "wed": [
+      "CompanyMaster"
+    ],
+    "person": [
+      "CompanyMaster",
+      "CompanySalesPerson",
+      "Dispense"
+    ],
+    "name": [
+      "CompanyMaster",
+      "CompanySalesPerson",
+      "Gender",
+      "Menu",
+      "Patient",
+      "ProductMaster",
+      "Role",
+      "ShiprushFile",
+      "State",
+      "SupplierMaster",
+      "UserMaster"
+    ],
+    "address": [
+      "CompanyMaster",
+      "Patient",
+      "SupplierMaster"
+    ],
+    "shipping": [
+      "CompanyMaster",
+      "Dispense",
+      "ReturnDispense"
+    ],
+    "city": [
+      "CompanyMaster",
+      "Patient",
+      "SupplierMaster"
+    ],
+    "logo": [
+      "CompanyMaster"
+    ],
+    "send": [
+      "CompanyMaster"
+    ],
+    "charges": [
+      "CompanyMaster",
+      "Dispense"
+    ],
+    "sun": [
+      "CompanyMaster"
+    ],
+    "email": [
+      "CompanyMaster",
+      "EmailLog",
+      "InventoryCheckListEmail",
+      "Patient",
+      "SupplierMaster",
+      "UserMaster"
+    ],
+    "working": [
+      "CompanyMaster"
+    ],
+    "user": [
+      "CompanyMaster",
+      "LoginHistory",
+      "OTPMaster",
+      "UserMaster"
+    ],
+    "mon": [
+      "CompanyMaster"
+    ],
+    "tue": [
+      "CompanyMaster"
+    ],
+    "contact": [
+      "CompanyMaster",
+      "UserMaster"
+    ],
+    "base": [
+      "CompanyMaster"
+    ],
+    "fri": [
+      "CompanyMaster"
+    ],
+    "thu": [
+      "CompanyMaster"
+    ],
+    "notification": [
+      "CompanyMaster",
+      "DeliveryNotificationLog"
+    ],
+    "sat": [
+      "CompanyMaster"
+    ],
+    "product": [
+      "CompanyPrice",
+      "DispenseDetailsConvertionHistory",
+      "DispenseError",
+      "DispenseProductDetail",
+      "InventoryCheckListEmail",
+      "InventoryProduct",
+      "InventoryTransaction",
+      "ProductMaster",
+      "PurchaseOrderProducts",
+      "SupplierProduct"
+    ],
+    "price": [
+      "CompanyPrice",
+      "PurchaseOrderProducts"
+    ],
+    "phone": [
+      "CompanySalesPerson",
+      "Patient",
+      "SupplierMaster"
+    ],
+    "sales": [
+      "CompanySalesPerson",
+      "Dispense"
+    ],
+    "patient": [
+      "CompanyMaster",
+      "Dispense",
+      "Patient",
+      "State"
+    ],
+    "customer": [
+      "Dispense",
+      "Patient"
+    ],
+    "expired": [
+      "Dispense",
+      "OTPMaster",
+      "ReturnDispense"
+    ],
+    "note": [
+      "Dispense",
+      "InwardOutward"
+    ],
+    "shiprush": [
+      "Dispense",
+      "ShiprushDetails",
+      "ShiprushFile"
+    ],
+    "rejected": [
+      "Dispense",
+      "InventoryTransaction"
+    ],
+    "ordered": [
+      "Dispense"
+    ],
+    "dispensed": [
+      "Dispense"
+    ],
+    "reason": [
+      "Dispense"
+    ],
+    "tracking": [
+      "Dispense",
+      "ReturnDispense",
+      "ShiprushFile"
+    ],
+    "upload": [
+      "Dispense"
+    ],
+    "rejection": [
+      "Dispense"
+    ],
+    "last": [
+      "Dispense",
+      "Patient",
+      "ReturnDispense",
+      "UserMaster"
+    ],
+    "verified": [
+      "Dispense",
+      "ReturnDispense"
+    ],
+    "shipped": [
+      "Dispense"
+    ],
+    "charge": [
+      "Dispense",
+      "DispenseDetailsConvertionHistory",
+      "DispenseProductDetail",
+      "ReturnDispense"
+    ],
+    "billing": [
+      "DispenseDetailsConvertionHistory",
+      "DispenseProductDetail"
+    ],
+    "convertion": [
+      "DispenseDetailsConvertionHistory"
+    ],
+    "modifier": [
+      "DispenseDetailsConvertionHistory",
+      "DispenseProductDetail",
+      "Modifier",
+      "ProductMaster"
+    ],
+    "whole": [
+      "DispenseDetailsConvertionHistory",
+      "DispenseProductDetail",
+      "SupplierProduct"
+    ],
+    "new": [
+      "DispenseDetailsConvertionHistory"
+    ],
+    "details": [
+      "DispenseDetailsConvertionHistory",
+      "ShiprushDetails"
+    ],
+    "sale": [
+      "DispenseDetailsConvertionHistory",
+      "DispenseProductDetail",
+      "SupplierProduct"
+    ],
+    "quantity": [
+      "DispenseDetailsConvertionHistory",
+      "DispenseProductDetail"
+    ],
+    "old": [
+      "DispenseDetailsConvertionHistory"
+    ],
+    "cost": [
+      "DispenseDetailsConvertionHistory",
+      "DispenseProductDetail",
+      "ProductMaster",
+      "SupplierProduct"
+    ],
+    "message": [
+      "DispenseError",
+      "Patient"
+    ],
+    "error": [
+      "DispenseError"
+    ],
+    "comment": [
+      "DispenseHistoryComment"
+    ],
+    "supplier": [
+      "DispenseProductDetail",
+      "InventoryTransaction",
+      "ProductMaster",
+      "PurchaseOrder",
+      "SupplierMaster",
+      "SupplierProduct"
+    ],
+    "gender": [
+      "Gender",
+      "Patient",
+      "ProductMaster"
+    ],
+    "inventory": [
+      "InventoryCheckListEmail",
+      "InventoryProduct",
+      "InventoryTransaction"
+    ],
+    "stock": [
+      "InventoryCheckListEmail",
+      "InventoryProduct",
+      "InventoryTransaction"
+    ],
+    "check": [
+      "InventoryCheckListEmail"
+    ],
+    "list": [
+      "InventoryCheckListEmail"
+    ],
+    "remarks": [
+      "InventoryTransaction"
+    ],
+    "inward": [
+      "InventoryTransaction",
+      "InwardOutward"
+    ],
+    "outward": [
+      "InventoryTransaction",
+      "InwardOutward"
+    ],
+    "username": [
+      "LoginFailure",
+      "UserMaster"
+    ],
+    "login": [
+      "LoginFailure",
+      "LoginHistory"
+    ],
+    "failure": [
+      "LoginFailure"
+    ],
+    "logged": [
+      "LoginHistory"
+    ],
+    "session": [
+      "LoginHistory"
+    ],
+    "out": [
+      "LoginHistory"
+    ],
+    "show": [
+      "Menu"
+    ],
+    "parent": [
+      "Menu"
+    ],
+    "child": [
+      "Menu"
+    ],
+    "admin": [
+      "Menu"
+    ],
+    "page": [
+      "Menu"
+    ],
+    "display": [
+      "Menu"
+    ],
+    "super": [
+      "Menu"
+    ],
+    "menu": [
+      "Menu",
+      "MenuRole"
+    ],
+    "default": [
+      "Menu"
+    ],
+    "icon": [
+      "Menu"
+    ],
+    "role": [
+      "MenuRole",
+      "Role",
+      "UserMaster"
+    ],
+    "verification": [
+      "Patient"
+    ],
+    "mobile": [
+      "Patient"
+    ],
+    "business": [
+      "Patient"
+    ],
+    "maritial": [
+      "Patient"
+    ],
+    "birth": [
+      "Patient"
+    ],
+    "first": [
+      "Patient",
+      "UserMaster"
+    ],
+    "home": [
+      "Patient"
+    ],
+    "middle": [
+      "Patient"
+    ],
+    "acc": [
+      "Patient"
+    ],
+    "paid": [
+      "PaymentsMaster"
+    ],
+    "payments": [
+      "PaymentsMaster"
+    ],
+    "comments": [
+      "PaymentsMaster"
+    ],
+    "color": [
+      "ProductMaster"
+    ],
+    "service": [
+      "ProductMaster"
+    ],
+    "wholesale": [
+      "ProductMaster"
+    ],
+    "pkg": [
+      "ProductMaster"
+    ],
+    "side": [
+      "ProductMaster"
+    ],
+    "location": [
+      "ProductMaster"
+    ],
+    "purchase": [
+      "PurchaseOrder",
+      "PurchaseOrderProducts"
+    ],
+    "change": [
+      "PurchaseOrder"
+    ],
+    "received": [
+      "PurchaseOrderProducts",
+      "ReturnDispense"
+    ],
+    "products": [
+      "PurchaseOrderProducts"
+    ],
+    "refrence": [
+      "RefrenceData"
+    ],
+    "value": [
+      "RefrenceData",
+      "SupplierMaster"
+    ],
+    "data": [
+      "RefrenceData"
+    ],
+    "partial": [
+      "ReturnDispense"
+    ],
+    "trackingnumber": [
+      "ReturnDispense"
+    ],
+    "file": [
+      "ShiprushFile"
+    ],
+    "update": [
+      "SupplierMaster"
+    ],
+    "minimum": [
+      "SupplierMaster"
+    ],
+    "line": [
+      "SupplierMaster"
+    ],
+    "item": [
+      "SupplierProduct"
+    ],
+    "sysdiagrams": [
+      "sysdiagrams"
+    ],
+    "password": [
+      "UserMaster"
+    ],
+    "usermaster": [
+      "BoxMaster",
+      "BoxTransaction",
+      "ClientInvoice",
+      "CompanyMaster",
+      "CompanySalesPerson",
+      "DISPENSE_EMAIL_LOG",
+      "Dispense",
+      "DispenseHistoryComment",
+      "DispenseProductDetail",
+      "InventoryProduct",
+      "InventoryTransaction",
+      "LoginHistory",
+      "OTPMaster",
+      "PaymentsMaster",
+      "ProductMaster",
+      "PurchaseOrder",
+      "ReturnDispense",
+      "Role",
+      "SupplierMaster",
+      "SupplierProduct"
+    ],
+    "boxmaster": [
+      "BoxTransaction",
+      "UserMaster"
+    ],
+    "boxtransaction": [
+      "BoxMaster",
+      "UserMaster"
+    ],
+    "braces": [
+      "BRACES_CODE"
+    ],
+    "braces_code": [
+      "BRACES"
+    ],
+    "companymaster": [
+      "ClientInvoice",
+      "CompanyBadState",
+      "CompanyPrice",
+      "CompanySalesPerson",
+      "DISPENSE_EMAIL_LOG",
+      "DeliveryNotificationLog",
+      "Patient",
+      "PaymentsMaster",
+      "State",
+      "UserMaster"
+    ],
+    "clientinvoice": [
+      "ClientInvoiceDispense",
+      "ClientInvoicePayment",
+      "ClientInvoiceReturnDispense",
+      "CompanyMaster",
+      "UserMaster"
+    ],
+    "clientinvoicedispense": [
+      "ClientInvoice",
+      "Dispense"
+    ],
+    "paymentsmaster": [
+      "ClientInvoicePayment",
+      "CompanyMaster",
+      "UserMaster"
+    ],
+    "clientinvoicepayment": [
+      "ClientInvoice",
+      "PaymentsMaster"
+    ],
+    "clientinvoicereturndispense": [
+      "ClientInvoice",
+      "ReturnDispense"
+    ],
+    "returndispense": [
+      "ClientInvoiceReturnDispense",
+      "Dispense",
+      "UserMaster"
+    ],
+    "companybadstate": [
+      "CompanyMaster"
+    ],
+    "companyprice": [
+      "CompanyMaster",
+      "ProductMaster"
+    ],
+    "productmaster": [
+      "CompanyPrice",
+      "DispenseProductDetail",
+      "Gender",
+      "InventoryProduct",
+      "InventoryTransaction",
+      "PurchaseOrderProducts",
+      "SupplierMaster",
+      "SupplierProduct",
+      "UserMaster"
+    ],
+    "companysalesperson": [
+      "CompanyMaster",
+      "UserMaster"
+    ],
+    "deliverynotificationlog": [
+      "CompanyMaster",
+      "Dispense"
+    ],
+    "dispense_email_log": [
+      "CompanyMaster",
+      "UserMaster"
+    ],
+    "dispenseproductdetail": [
+      "Dispense",
+      "DispenseDetailsConvertionHistory",
+      "DispenseError",
+      "InventoryTransaction",
+      "ProductMaster",
+      "SupplierMaster",
+      "UserMaster"
+    ],
+    "dispensedetailsconvertionhistory": [
+      "DispenseProductDetail"
+    ],
+    "dispenseerror": [
+      "Dispense",
+      "DispenseProductDetail"
+    ],
+    "dispensehistorycomment": [
+      "Dispense",
+      "UserMaster"
+    ],
+    "suppliermaster": [
+      "DispenseProductDetail",
+      "InventoryTransaction",
+      "ProductMaster",
+      "PurchaseOrder",
+      "State",
+      "SupplierProduct",
+      "UserMaster"
+    ],
+    "inventoryproduct": [
+      "InventoryTransaction",
+      "ProductMaster",
+      "UserMaster"
+    ],
+    "inventorytransaction": [
+      "DispenseProductDetail",
+      "InventoryProduct",
+      "InwardOutward",
+      "ProductMaster",
+      "SupplierMaster",
+      "UserMaster"
+    ],
+    "inwardoutward": [
+      "InventoryTransaction"
+    ],
+    "loginhistory": [
+      "UserMaster"
+    ],
+    "menurole": [
+      "Menu",
+      "Role"
+    ],
+    "otpmaster": [
+      "UserMaster"
+    ],
+    "purchaseorder": [
+      "PurchaseOrderProducts",
+      "SupplierMaster",
+      "UserMaster"
+    ],
+    "purchaseorderproducts": [
+      "ProductMaster",
+      "PurchaseOrder"
+    ],
+    "shiprushdetails": [
+      "Dispense",
+      "ShiprushFile"
+    ],
+    "shiprushfile": [
+      "Dispense",
+      "ShiprushDetails"
+    ],
+    "supplierproduct": [
+      "ProductMaster",
+      "SupplierMaster",
+      "UserMaster"
+    ]
+  }
+}
