@@ -20,34 +20,36 @@ def setup_logging(name: str = __name__) -> logging.Logger:
     """Setup structured logging with daily rotation and noise suppression."""
     log_path = get_daily_log_path()
 
-    # Dynamic log level from environment or fallback
-    # level_name = os.getenv("LOG_LEVEL", "INFO").upper()
-    # level_name = "DEBUG"
-    # log_level = getattr(logging, level_name, logging.INFO)
+    # Create a project-specific logger
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False  # prevent bubbling to root logger
 
-    # Clear existing handlers to avoid duplicate logs
-    root_logger = logging.getLogger()
-    if root_logger.handlers:
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
+    # Clear old handlers
+    if logger.handlers:
+        for h in logger.handlers[:]:
+            logger.removeHandler(h)
 
-    # Handlers: File + Console
-    handlers = [logging.StreamHandler()]
+    # File handler
     try:
-        handlers.insert(0, logging.FileHandler(log_path, mode="a", encoding="utf-8"))
+        file_handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+        file_handler.setFormatter(logging.Formatter(
+            "%(asctime)s - %(module)s:%(lineno)d - %(levelname)s - %(message)s",
+            "%Y-%m-%d %H:%M:%S"
+        ))
+        logger.addHandler(file_handler)
     except Exception:
-        # If file handler fails, fallback to console only
         pass
 
-    # Configure base logger
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s - %(module)s:%(lineno)d - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=handlers,
-    )
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter(
+        "%(asctime)s - %(module)s:%(lineno)d - %(levelname)s - %(message)s",
+        "%Y-%m-%d %H:%M:%S"
+    ))
+    logger.addHandler(console_handler)
 
-    # Suppress noisy third-party logs
+    # Suppress noisy third-party logs globally
     noisy_libs = [
         "asyncio", "urllib3", "matplotlib", "PIL",
         "tensorflow", "torch", "numba", "ultralytics", "cv2",
@@ -55,8 +57,8 @@ def setup_logging(name: str = __name__) -> logging.Logger:
     for lib in noisy_libs:
         logging.getLogger(lib).setLevel(logging.WARNING)
 
-    # Return a named logger for the caller module
-    return logging.getLogger(name)
+    return logger
+
 
 
 def cleanup_old_logs(days_to_keep: int = 30):

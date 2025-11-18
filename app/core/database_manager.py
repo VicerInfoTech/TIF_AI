@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Generator
+
 from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
-from sqlalchemy.engine.base import Connection
 
 
 def _normalize_jdbc_connection_string(connection_string: str) -> str:

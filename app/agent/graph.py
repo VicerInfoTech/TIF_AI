@@ -14,6 +14,7 @@ def create_sql_agent_graph() -> StateGraph:
 	workflow = StateGraph(AgentState)
 
 	workflow.add_node("load_config", nodes.load_config_node)
+	workflow.add_node("analyze_intent", nodes.business_intent_node)
 	workflow.add_node("select_schema", nodes.select_schema_node)
 	workflow.add_node("plan_sql", nodes.plan_sql_node)
 	workflow.add_node("generate_sql", nodes.generate_sql_node)
@@ -24,7 +25,8 @@ def create_sql_agent_graph() -> StateGraph:
 
 	workflow.set_entry_point("load_config")
 
-	workflow.add_edge("load_config", "select_schema")
+	workflow.add_edge("load_config", "analyze_intent")
+	workflow.add_edge("analyze_intent", "select_schema")
 	workflow.add_edge("select_schema", "plan_sql")
 	workflow.add_edge("plan_sql", "generate_sql")
 	workflow.add_edge("generate_sql", "validate_sql")

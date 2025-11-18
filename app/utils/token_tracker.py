@@ -84,17 +84,6 @@ class TokenTracker:
             + output_tokens * self.OUTPUT_COST_PER_TOKEN
         )
 
-    def get_totals(self) -> Dict[str, float]:
-        requests = len(self.history) or 1
-        return {
-            "requests": len(self.history),
-            "total_input_tokens": self.total_input_tokens,
-            "total_output_tokens": self.total_output_tokens,
-            "avg_input_tokens": self.total_input_tokens / requests,
-            "avg_output_tokens": self.total_output_tokens / requests,
-            "estimated_cost_usd": self._calculate_cost(self.total_input_tokens, self.total_output_tokens),
-        }
-
 
 def get_token_tracker() -> TokenTracker:
     """Return a shared token tracker instance."""

@@ -125,12 +125,19 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         graph = get_graph()
         logger.debug("Invoking LangGraph workflow")
         final_state = graph.invoke(initial_state)
+        if final_state is None:
+            logger.error("LangGraph workflow returned no state")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to execute the LangGraph workflow",
+            )
 
         # Extract response data
         status_val = "success" if final_state.get("execution_result") is not None else "error"
         sql_generated = final_state.get("generated_sql")
-        validation_ok = final_state.get("validation_result", {}).get("valid", False)
-        error_msg = final_state.get("error_message")
+        validation_result = final_state.get("validation_result") or {}
+        validation_ok = validation_result.get("valid", False)
+        error_msg = validation_result.get("reason") or final_state.get("error_message")
         formatted_data = final_state.get("final_response", {})
         execution_time = final_state.get("execution_time_ms")
         total_rows = final_state.get("total_rows")

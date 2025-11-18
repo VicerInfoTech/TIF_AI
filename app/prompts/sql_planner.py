@@ -1,21 +1,58 @@
-"""Prompt templates for SQL planning (placeholder)."""
+"""Prompt templates for SQL planning."""
+
+from __future__ import annotations
+
+import json
+from typing import Any, Mapping
 
 
-def build_planning_prompt(query: str, ddl_schema: str) -> str:
-	"""Prompt for LLM to plan SQL query steps from user request and DDL."""
+def _format_spec(spec: Mapping[str, Any] | None) -> str:
+	if not spec:
+		return "(No structured business spec provided.)"
+	return json.dumps(spec, indent=2)
 
-	ddl_excerpt = ddl_schema[:1500]
-	return (
-		"You are an expert SQL analyst."
-		"\nGiven the user's request and the database schema excerpt below, outline the logical steps to answer the query."
-		"\nFocus on identifying relevant tables, columns, filters, joins, and aggregation logic."
-		"\nDo not write SQL yet—just describe the plan in clear, numbered steps."
-		"\n\nUser Query:\n"
-		f"{query}\n"
-		"\nDatabase DDL (excerpt):\n"
-		f"{ddl_excerpt}\n"
-		"\nExample plan format:\n"
-		"1. Identify main table(s)\n2. List required columns\n3. Specify filters/conditions\n4. Note any joins\n5. Describe aggregation/grouping if needed\n"
-		"\nReturn only the plan."
+
+def build_planning_prompt(
+	query: str,
+	schema_context: str,
+	*,
+	business_spec: Mapping[str, Any] | None = None,
+	join_summary: str | None = None,
+) -> str:
+	"""Prompt for LLM to plan SQL query steps using business intent + schema context."""
+	from datetime import date
+	today = date.today().isoformat()
+	schema_excerpt = (schema_context or "No schema context provided.")[:3500]
+	spec_text = _format_spec(business_spec)
+	prompt = [
+		f"You are an expert analytics planner tasked with outlining a SQL strategy. Today's date is {today}.",
+		"Use the user's request, business intent, and schema context to derive step-by-step instructions.",
+		"Focus on identifying key tables, joins, filters, metrics, and grouping logic.",
+		"Do not output SQL – only produce a numbered analytical plan.",
+		"",
+		"User Query:",
+		query,
+		"",
+		"Business Intent (JSON):",
+		spec_text,
+		"",
+		"Schema Context:",
+		schema_excerpt,
+		f"Today's date: {today}",
+	]
+	if join_summary:
+		prompt.extend(["", "Join Hints:", join_summary])
+	prompt.extend(
+		[
+			"",
+			"Example format:",
+			"1. Identify base table(s)",
+			"2. List columns needed", 
+			"3. Describe filters/date constraints",
+			"4. Outline joins and relationships",
+			"5. Mention aggregation/grouping logic",
+			"Return only the plan instructions.",
+		]
 	)
+	return "\n".join(prompt)
 

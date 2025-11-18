@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 import pandas as pd
 
+from app.models import BusinessQuerySpec
+
 
 class AgentState(TypedDict, total=False):
 	"""State that flows through the LangGraph workflow."""
@@ -18,13 +20,18 @@ class AgentState(TypedDict, total=False):
 	# Configuration
 	db_config: Dict[str, Any]
 	schema_metadata: Dict[str, Any]
+	schema_toolkit: Any
 	ddl_schema: str
 	selected_tables: Optional[List[str]]
 	keyword_matches: Optional[List[str]]
+	schema_context: Optional[str]
+	join_summary: Optional[str]
 
 	# Planning and generation
 	planning_notes: Optional[str]
+	business_spec: Optional[BusinessQuerySpec]
 	regeneration_context: Optional[str]
+	schema_summaries: Optional[List[str]]
 	generated_sql: Optional[str]
 
 	# Validation & execution

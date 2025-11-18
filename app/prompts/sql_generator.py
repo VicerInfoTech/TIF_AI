@@ -1,36 +1,55 @@
 """Prompt template for SQL generation (for Microsoft SQL Server)."""
 
-from typing import Optional
+from __future__ import annotations
+
+import json
+from typing import Mapping, Optional
 
 
-def build_generation_prompt(query: str, ddl_schema: str, plan: Optional[str] = None, feedback: Optional[str] = None) -> str:
-	"""Prompt for LLM to generate a safe, read-only SQL Server (T-SQL) query."""
+def _format_spec(spec: Mapping[str, object] | None) -> str:
+	if not spec:
+		return "(business spec unavailable)"
+	return json.dumps(spec, indent=2)
 
-	# ddl_excerpt = ddl_schema[:3000]
-	ddl_excerpt = ddl_schema
+
+def build_generation_prompt(
+	*,
+	query: str,
+	schema_context: str,
+	plan: Optional[str] = None,
+	feedback: Optional[str] = None,
+	business_spec: Mapping[str, object] | None = None,
+	join_summary: str | None = None,
+) -> str:
+	"""Prompt for LLM to generate a safe, read-only SQL Server query."""
+	from datetime import date
+	today = date.today().isoformat()
 	prompt = [
-		"You are a senior SQL Server (T-SQL) developer."
-		"\nGenerate a single, safe, read-only SQL statement that answers the user's question."
-		"\nRules:"
-		"\n- Only SELECT statements."
-		"\n- No data modification (no INSERT, UPDATE, DELETE, DROP, ALTER, etc)."
-		"\n- No semicolons, multi-statements, or DDL."
-		"\n- Use only tables and columns present in the schema excerpt."
-		"\n- If aggregation or joins are needed, include them."
-		"\n- For limiting rows, use 'TOP 1000' or 'OFFSET ... FETCH' instead of LIMIT."
-		"\n- Use aliases when appropriate for readability."
-		"\n- Ensure compatibility with Microsoft SQL Server syntax."
-		"\n\nUser Query:\n"
-		f"{query}\n"
-		"\nDatabase DDL (excerpt):\n"
-		f"{ddl_excerpt}\n"
+		f"You are a senior SQL Server (T-SQL) developer. Today's date is {today}.",
+		"Generate one safe SELECT statement that answers the user's request using only the provided schema context.",
+		"Rules:",
+		"- Only SELECT statements (no INSERT/UPDATE/DELETE/DDL).",
+		"- No semicolons or multi-statements.",
+		"- Use table aliases and fully qualify columns where helpful.",
+		"- Include JOINs, filters, GROUP BY, and ORDER BY only when justified by the plan or business intent.",
+		"- If limiting rows, use TOP or OFFSET/FETCH.",
+		"- Ensure the query is idempotent and read-only.",
+		"",
+		"User Query:",
+		query,
+		"",
+		"Business Intent (JSON):",
+		_format_spec(business_spec),
+		"",
+		"Schema Context:",
+		schema_context,
+		f"Today's date: {today}",
 	]
-
+	if join_summary:
+		prompt.extend(["", "Join Hints:", join_summary])
 	if plan:
-		prompt.append(f"\nProposed Plan:\n{plan}")
-
+		prompt.extend(["", "Execution Plan Notes:", plan])
 	if feedback:
-		prompt.append(f"\nPrevious Attempt Feedback:\n{feedback}\nPlease correct any issues above.")
-
-	prompt.append("\nReturn only the SQL statement, no explanation or Markdown.")
+		prompt.extend(["", "Previous Attempt Feedback (fix these issues):", feedback])
+	prompt.append("\nReturn only the SQL statement with no commentary or markdown fences.")
 	return "\n".join(prompt)

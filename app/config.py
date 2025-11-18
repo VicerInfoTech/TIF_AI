@@ -11,9 +11,12 @@ from typing import Dict
 from dotenv import load_dotenv
 
 from app.models import ApplicationConfig, DatabaseSettings
+from app.utils.logger import setup_logging
 
 # Load environment variables from .env if present.
 load_dotenv()
+
+logger = setup_logging(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "database_config.json"
@@ -53,6 +56,7 @@ def _override_with_env(db_key: str, settings: DatabaseSettings) -> DatabaseSetti
 		update={
 			"connection_string": os.path.expandvars(settings.connection_string),
 			"ddl_file": _resolve_path(settings.ddl_file),
+			"intro_template" : _resolve_path(Path(settings.intro_template)),
 		}
 	)
 
@@ -63,7 +67,6 @@ def _load_raw_config(config_path: Path) -> ApplicationConfig:
 	return ApplicationConfig.model_validate(data)
 
 
-@lru_cache(maxsize=1)
 def load_database_config(config_path: Path = DEFAULT_CONFIG_PATH) -> ApplicationConfig:
 	"""Load and cache database configuration from disk."""
 
@@ -85,6 +88,7 @@ def get_database_settings(db_flag: str, config_path: Path = DEFAULT_CONFIG_PATH)
 	"""Convenience helper to fetch settings for a specific database."""
 
 	config = load_database_config(config_path)
+	logger.info("Fetching database settings for db_flag= %s", db_flag)
 	try:
 		return config.databases[db_flag]
 	except KeyError as exc:

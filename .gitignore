@@ -7,3 +7,8 @@ __pycache__/
 Log/
 doc/
 *.log
+
+*.yaml
+config/prompts/avamed_db_intro.txt
+config/prompts/medical_db_intro.txt
+config/database_config.json
