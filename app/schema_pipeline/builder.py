@@ -3,21 +3,18 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+ 
 from datetime import datetime, timezone
 from itertools import combinations
 from typing import Any, DefaultDict, Dict, Iterable, List, Tuple
 
-from app.schema_pipeline.models import DatabaseSchemaArtifacts, RawMetadata
+from app.models import DatabaseSchemaArtifacts, RawMetadata
 from app.utils.logger import setup_logging
 
 logger = setup_logging(__name__)
 
 
-@dataclass(slots=True)
-class BuilderSettings:
-    include_schemas: Iterable[str] | None = None
-    exclude_schemas: Iterable[str] | None = None
+from app.models import BuilderSettings
 
 
 class SchemaGraphBuilder:

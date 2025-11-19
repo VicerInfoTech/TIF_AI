@@ -34,40 +34,38 @@ User NL Query
 - **SQL Agent**: the existing LangGraph with new nodes: `load_config → analyze_intent → select_schema → plan_sql → generate_sql → validate_sql → execute_query → format_results`.
 - Both agents share the schema toolkit so LLMs never hallucinate tables/columns outside the documented metadata.
 
-## Schema Extraction Pipeline
+## Schema Pipeline API
 
-Use the `generate_schema.py` helper to extract SQL Server metadata and emit the
-YAML artifacts consumed by the LangGraph agents. The runtime now relies
-exclusively on the YAML schema directory (`config/schemas/<db_flag>`), so
-regenerate the artifacts whenever the database schema changes:
+The schema pipeline exposes a single API that performs extraction, documentation,
+and embedding generation in one request. This replaces the previous CLI helpers
+and ensures the FastAPI server is the single source of truth for schema
+workflows. All YAML artifacts remain under `config/schemas/<db_flag>`, just like
+before, but the API now orchestrates every stage for you.
 
-```bash
-python generate_schema.py avamed_db --format yaml
+```json
+POST /schemas/pipeline
+{
+  "db_flag": "avamed_db",
+  "collection_name": "boxmaster_docs",
+  "run_documentation": true,
+  "run_embeddings": true
+}
 ```
 
-### Common options
+- **Behavior**: generates the YAML schema artifacts, enriches them via the
+  Groq-based documentation agent, converts each table to the ultra-minimal text
+  format, and persists embeddings for later retrieval.
+- **Control**: skip documentation or embedding by setting `run_documentation`
+  or `run_embeddings` to `false`. Provide `postgres_connection_string` in the
+  payload or via `POSTGRES_CONNECTION_STRING` so the embedding stage can access
+  the PGVector-backed Postgres database.
+- **Result**: the endpoint returns a structured summary of each stage (tables
+  exported, documented, minimal files written, and the number of document
+  chunks stored), enabling quick sanity checks before running downstream agents.
 
-- `--schemas <schema1> <schema2>` – only include the listed schemas.
-- `--exclude-schemas <schema>` – skip specific schemas.
-- `--output-dir <path>` – override the default output location (defaults to the
-  stem of the configured `ddl_file`).
-- `--no-backup` – overwrite the existing YAML output directory instead of
-  rotating it with a timestamped backup.
-- `--format yaml` – emit YAML files only (preferred).
-- `--format both` – still available if you need the legacy compact JSON
-  artifact for external tooling, but the SQL agent ignores that file.
-
-All YAML files are grouped per schema, with dedicated folders for views,
-procedures, and functions alongside the master `schema_index.yaml` file.
-
-### Column documentation
-
-The schema YAML files capture basic metadata, but you can run
-`python document_schema.py <db_flag>` to refresh column descriptions,
-keywords, and narrative summaries via the documentation pipeline. Save the
-results under `config/schemas/<db_flag>` and the LangGraph nodes will
-automatically surface the updated descriptions when finding tables or
-columns.
+All schema artifacts are still grouped per schema (tables, views, functions) and
+include `schema_index.yaml`, but you no longer need separate scripts to keep
+them in sync.
 
 ## Logging and traceability
 
@@ -87,3 +85,31 @@ so you can follow every node's progress when the server is running:
 
 If you need more verbose output, adjust the formatter in `app/utils/logger.py`
 or add additional `logger.debug` statements in the nodes as required.
+
+## Schema embedding API
+
+- Endpoint: `POST /schemas/embeddings`
+- Payload: `{ "db_flag": "avamed_db", "collection_name": "boxmaster_docs" }`
+- Environment: Set `POSTGRES_CONNECTION_STRING` to point at your PgVector-backed Postgres instance.
+- Behavior: iterates the YAML files directly under `config/schemas/<db_flag>`, converts each to the ultra-minimal `temp_output/minimal/<db_flag>/<table>_minimal.txt` format, chunks the text, computes embeddings using `jinaai/jina-embeddings-v3`, and stores the results into the specified PGVector collection.
+- Response: describe the processed files, output directory, and a short message.
+
+Use this route whenever you regenerate schema YAMLs and want the matching embeddings refreshed for downstream LangGraph workflows.
+
+## Unified schema pipeline API
+
+- Endpoint: `POST /schemas/pipeline`
+- Payload example:
+  ```json
+  {
+    "db_flag": "avamed_db",
+    "collection_name": "boxmaster_docs",
+    "run_documentation": true,
+    "run_embeddings": true
+  }
+  ```
+- Environment: ensure `POSTGRES_CONNECTION_STRING` (or the optional `postgres_connection_string` payload field) points to a Postgres instance configured with PGVector.
+- Behavior: runs the full extraction, documentation, and embedding flow and returns a structured report summarizing each stage (tables exported, documentation stats, embedding counts).
+- Response: details per stage (`extraction`, `documentation`, `embeddings`) including success/skip state, counts, and output directories so you can quickly verify what changed.
+
+Use this comprehensive route when you want to regenerate everything from scratch and immediately refresh the embeddings used by downstream agents.

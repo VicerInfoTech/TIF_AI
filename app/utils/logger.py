@@ -5,8 +5,11 @@ import time
 from datetime import datetime
 
 # --- Setup Log Directory ---
-PROJECT_ROOT = "D:\\sql-insight-agent"
-LOG_DIR = os.path.join(PROJECT_ROOT, "Log")
+from pathlib import Path
+
+# Compute project root locally to avoid import cycles with `app.config`
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LOG_DIR = os.path.join(str(PROJECT_ROOT), "Log")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 

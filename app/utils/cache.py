@@ -1,1 +1,0 @@
-# Simple in-memory cache

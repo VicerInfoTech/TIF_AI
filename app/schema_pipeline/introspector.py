@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.schema_pipeline.models import RawMetadata
+from app.models import RawMetadata
 from app.utils.logger import setup_logging
 
 logger = setup_logging(__name__)

@@ -11,7 +11,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import yaml
 
-from app.config import get_database_settings
+from app.config import get_database_settings, PROJECT_ROOT
 from app.models import (
     ColumnInfo,
     ForeignKeyInfo,
@@ -55,7 +55,7 @@ class SchemaToolkit:
         self.db_flag = db_flag
         settings = get_database_settings(db_flag)
         self.settings = settings
-        self.schema_root = self._derive_schema_root(settings.ddl_file)
+        self.schema_root = self._derive_schema_root()
         self.schema_index = self._load_schema_index()
         self.table_details: Dict[str, TableDetail] = {}
         self.table_paths: Dict[str, Path] = {}
@@ -90,15 +90,19 @@ class SchemaToolkit:
             logger.error("Failed to load alias map: %s", exc)
             return {}
 
-    def _derive_schema_root(self, ddl_file: Path) -> Path:
-        base = ddl_file if ddl_file.is_absolute() else Path(ddl_file)
-        candidate = base.with_suffix("") if base.suffix else base
-        root = candidate if candidate.exists() and candidate.is_dir() else candidate
-        if not root.exists() or not root.is_dir():
+    def _derive_schema_root(self) -> Path:
+        """Resolve schema root using the standard `config/schemas/<db_flag>` layout.
+
+        Previously the system relied on a `ddl_file` path in the database settings.
+        The DDL path is removed; schema artifacts are expected under the
+        repository `config/schemas/<db_flag>` directory.
+        """
+        candidate = PROJECT_ROOT / "config" / "schemas" / self.db_flag
+        if not candidate.exists() or not candidate.is_dir():
             raise FileNotFoundError(
-                f"Schema directory for '{self.db_flag}' not found near {ddl_file}. Expected {root}."
+                f"Schema directory for '{self.db_flag}' not found at {candidate}."
             )
-        return root
+        return candidate
 
     def _load_schema_index(self) -> Dict[str, object]:
         index_path = self.schema_root / "schema_index.yaml"
@@ -222,53 +226,6 @@ class SchemaToolkit:
                 graph.setdefault(fk.referenced_table.lower(), []).append(reverse)
         return graph
 
-    # ------------------ Public Helpers ------------------
-
-    def list_tables(self) -> List[str]:
-        return sorted(detail.table_name for detail in self.table_details.values())
-
-    def describe_table(self, table_name: str) -> Optional[TableDetail]:
-        return self.table_details.get(table_name.lower())
-
-    def search_tables(self, query: str, top_k: int = 5, include_column_matches: bool = True) -> List[TableMatch]:
-        # Apply ontology alias expansion first.
-        tokens = _tokenize(query)
-        alias_target_tables: List[str] = []
-        for token in list(tokens):
-            mapped = self.alias_map.get(token)
-            if mapped:
-                alias_target_tables.append(mapped.lower())
-                # Optionally add mapped table name as additional token to boost match
-                tokens.append(mapped.lower())
-        if not tokens:
-            tokens = _tokenize(query + " table")
-        matches: List[Tuple[str, float, Counter]] = []
-        for key, detail in self.table_details.items():
-            # respect global setting exclude_column_matches if provided
-            effective_include = include_column_matches and not self.settings.exclude_column_matches
-            score, reasons = self._score_table(detail, tokens, effective_include)
-            if key in alias_target_tables:
-                # Deterministic alias boost
-                score += 6.0
-                reasons["alias"] += 1
-            if score > 0:
-                matches.append((key, score, reasons))
-        matches.sort(key=lambda item: item[1], reverse=True)
-        results: List[TableMatch] = []
-        for key, score, reasons in matches[:top_k]:
-            detail = self.table_details[key]
-            reason_text = ", ".join(f"{token}:{count}" for token, count in reasons.items())
-            columns = [col.name for col in detail.columns[:10]]
-            results.append(
-                TableMatch(
-                    table_name=detail.table_name,
-                    score=score,
-                    reason=reason_text or None,
-                    description=detail.description,
-                    columns=columns,
-                )
-            )
-        return results
 
     def _score_table(
         self,
@@ -354,65 +311,3 @@ class SchemaToolkit:
                 else:
                     queue.append((next_table, new_path))
         return results
-
-def get_schema_toolkit(db_flag: str) -> SchemaToolkit:
-    """Return a cached toolkit for the requested database."""
-
-    return SchemaToolkit(db_flag)
-
-
-def format_table_for_prompt(detail: TableDetail, max_columns: int = 8) -> str:
-    """Render a compact summary of a table for LLM context."""
-
-    header = f"Table {detail.schema}.{detail.table_name}: {detail.description or 'No description provided.'}"
-    lines = [header]
-    for column in detail.columns[:max_columns]:
-        flags: List[str] = []
-        if column.is_primary_key:
-            flags.append("PK")
-        if column.is_foreign_key and column.references:
-            flags.append(f"FK->{column.references}")
-        flag_text = f" [{' '.join(flags)}]" if flags else ""
-        desc = f" - {column.description}" if column.description else ""
-        lines.append(
-            f"  - {column.name} ({column.data_type or 'unknown'}){flag_text}{desc}"
-        )
-    if len(detail.columns) > max_columns:
-        lines.append(f"  - ... {len(detail.columns) - max_columns} more columns")
-    if detail.keywords:
-        lines.append("  Keywords: " + ", ".join(detail.keywords[:10]))
-    return "\n".join(lines)
-
-
-def summarize_join_paths(
-    toolkit: SchemaToolkit,
-    table_names: Sequence[str],
-    *,
-    max_pairs: int = 5,
-    max_paths: int = 2,
-) -> str:
-    """Generate a short textual summary of join options between selected tables."""
-
-    unique_tables = []
-    seen = set()
-    for name in table_names:
-        lower = name.lower()
-        if lower in seen:
-            continue
-        seen.add(lower)
-        unique_tables.append(name)
-
-    lines: List[str] = []
-    for table_a, table_b in list(combinations(unique_tables, 2))[:max_pairs]:
-        paths = toolkit.find_join_paths(table_a, table_b, max_paths=max_paths)
-        if not paths:
-            continue
-        lines.append(f"Joins between {table_a} and {table_b}:")
-        for path in paths:
-            segments = []
-            for step in path.steps:
-                left = ",".join(step.columns) or "?"
-                right = ",".join(step.referenced_columns) or "?"
-                segments.append(f"{step.from_table}.{left} = {step.to_table}.{right}")
-            lines.append("  - " + " THEN ".join(segments))
-    return "\n".join(lines)

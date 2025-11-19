@@ -9,7 +9,7 @@ from typing import Dict
 
 import yaml
 
-from app.schema_pipeline.models import DatabaseSchemaArtifacts
+from app.models import DatabaseSchemaArtifacts
 from app.utils.logger import setup_logging
 
 logger = setup_logging(__name__)

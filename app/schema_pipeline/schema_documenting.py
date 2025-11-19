@@ -7,6 +7,7 @@ for database schemas using LLMs with guaranteed schema validation.
 from __future__ import annotations
 
 import json
+ 
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Tuple
 from app.models import ColumnDocumentation, TableDocumentation
@@ -15,12 +16,14 @@ from langchain_core.runnables import Runnable
 from langchain_groq import ChatGroq
 import yaml
 from dotenv import load_dotenv
-
+import time
 load_dotenv()
 
 from app.utils.logger import setup_logging
 
 logger = setup_logging(__name__)
+
+from app.models import SchemaDocumentationSummary
 
 
 class SchemaDocumentingAgent:
@@ -39,7 +42,14 @@ class SchemaDocumentingAgent:
             temperature: LLM temperature (0.2 for more consistent documentation).
                 Lower values produce more deterministic outputs.
         """
-        self.llm: ChatGroq = ChatGroq(model=model, temperature=temperature)
+        
+        try :
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            model = "gemini-2.5-flash"
+            self.llm: ChatGoogleGenerativeAI = ChatGoogleGenerativeAI(model=model, temperature=temperature)
+        except ImportError:
+            model = "llama-3.3-70b-versatile"
+            self.llm: ChatGroq = ChatGroq(model=model, temperature=temperature)
         self.prompt: ChatPromptTemplate = self._build_prompt()
         # Use with_structured_output for guaranteed schema compliance
         # This is the modern LangChain approach for structured generation
@@ -58,27 +68,18 @@ class SchemaDocumentingAgent:
             [
                 (
                     "system",
-                    """You are a database documentation expert specializing in creating business-friendly 
-documentation that helps non-technical users understand database schemas.
-
-Business Context:
-{business_intro}
-
-Your Task:
-Generate clear, business-oriented documentation for database columns.
+                    """You are a documentation specialist who rewrites table narratives and column
+summaries for business audiences. You have access to the full db intro (``business_intro``) and
+should use it to expand the short table description provided by the schema index.
 
 Guidelines:
-1. **Descriptions**: Write 1-2 sentence descriptions that explain what the data represents in business terms
-   - Avoid technical jargon and implementation details
-   - Focus on the business value and use case
-   - Make it understandable to non-technical stakeholders
-
-2. **Keywords**: Provide exactly 3 keywords per column
-   - Use simple, common terms business users would naturally search for
-   - Think about how someone would ask for this data in plain language
-   - Avoid database-specific terminology (no "varchar", "foreign_key", etc.)
-
-3. **Context**: Use the table name and description to understand the column's purpose within the larger data model
+1. **Table Description**: Rewrite or expand the provided table short description into
+   ~2-3 sentences that mention the table's role within the database and reflect the business
+   context described in {business_intro}. Keep the tone consistent with the rest of the schema docs.
+2. **Column Descriptions**: Produce exactly one short sentence (ideally 1-2 clauses) per column
+   explaining what the column means for a business user. Keep them concise and avoid technical-only
+   jargon.
+3. **Keywords**: Provide exactly 3 business-friendly search terms for each column.
 """,
                 ),
                 (
@@ -90,7 +91,7 @@ Table Description: {table_description}
 Columns to document:
 {columns_json}
 
-Generate business-friendly descriptions and exactly 3 keywords for each column.""",
+Rewrite the table description and return the updated narrative plus the column docs as structured output.""",
                 ),
             ]
         )
@@ -102,7 +103,9 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
         table_description: str,
         columns: List[Dict[str, Any]],
         business_intro: str,
-    ) -> Dict[str, ColumnDocumentation]:
+        max_retries: int = 5,
+        initial_delay: float = 10.0,
+    ) -> Tuple[Dict[str, ColumnDocumentation], str]:
         """Generate documentation for all columns in a table using LLM.
 
         This method uses LangChain's structured output to ensure the LLM response
@@ -116,8 +119,9 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
             business_intro: Business context text to guide documentation style
 
         Returns:
-            Dictionary mapping column_name to ColumnDocumentation object.
-            Returns empty dict if documentation generation fails.
+            Tuple containing the column documentation map and the rewritten table description.
+            If generation fails, the map will be empty and the table description will fall back
+            to the original value.
 
         Example:
             >>> agent = SchemaDocumentingAgent()
@@ -137,7 +141,7 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
             logger.warning(
                 "No columns provided for table %s.%s", schema_name, table_name
             )
-            return {}
+            return {}, table_description
 
         # Prepare column summary for LLM with relevant metadata
         columns_json = json.dumps(
@@ -153,52 +157,65 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
             indent=2,
         )
 
-        try:
-            # Invoke the chain - structured output ensures type safety
-            result: TableDocumentation = self.chain.invoke(
-                {
-                    "business_intro": business_intro,
-                    "table_name": table_name,
-                    "schema_name": schema_name,
-                    "table_description": table_description
-                    or "No description available",
-                    "columns_json": columns_json,
-                }
-            )
-
-            # Convert list to dict for efficient lookup
-            doc_map = {doc.column_name: doc for doc in result.columns}
-
-            logger.info(
-                "Successfully documented %d/%d columns for %s.%s",
-                len(doc_map),
-                len(columns),
-                schema_name,
-                table_name,
-            )
-
-            # Warn if we didn't get documentation for all columns
-            if len(doc_map) != len(columns):
-                missing = set(col["name"] for col in columns) - set(doc_map.keys())
-                logger.warning(
-                    "Missing documentation for columns in %s.%s: %s",
-                    schema_name,
-                    table_name,
-                    missing,
+        attempt = 0
+        delay = initial_delay
+        while attempt <= max_retries:
+            try:
+                # logger.debug(f"Invoking LLM for table {schema_name}.{table_name} documentation with table description: {table_description}")
+                # Invoke the chain - structured output ensures type safety
+                result: TableDocumentation = self.chain.invoke(
+                    {
+                        "business_intro": business_intro,
+                        "table_name": table_name,
+                        "schema_name": schema_name,
+                        "table_description": table_description
+                        or "No description available",
+                        "columns_json": columns_json,
+                    }
                 )
 
-            return doc_map
+                # Convert list to dict for efficient lookup
+                doc_map = {doc.column_name: doc for doc in result.columns}
 
-        except Exception as exc:
-            logger.error(
-                "Failed to document table %s.%s: %s",
-                schema_name,
-                table_name,
-                exc,
-                exc_info=True,
-            )
-            # Return empty dict as fallback to allow pipeline to continue
-            return {}
+                logger.info(
+                    "Successfully documented %d/%d columns for %s.%s",
+                    len(doc_map),
+                    len(columns),
+                    schema_name,
+                    table_name,
+                )
+
+                # Warn if we didn't get documentation for all columns
+                if len(doc_map) != len(columns):
+                    missing = set(col["name"] for col in columns) - set(doc_map.keys())
+                    logger.warning(
+                        "Missing documentation for columns in %s.%s: %s",
+                        schema_name,
+                        table_name,
+                        missing,
+                    )
+
+                return doc_map, result.table_description.strip()
+
+            except Exception as exc:
+                # Check for rate limit error (429)
+                if hasattr(exc, "status_code") and getattr(exc, "status_code", None) == 429 or "rate limit" in str(exc).lower():
+                    attempt += 1
+                    logger.warning(f"Rate limit hit (429) for {table_name}. Sleeping {delay:.1f}s before retry {attempt}/{max_retries}...")
+                    time.sleep(delay)
+                    delay *= 2  # Exponential backoff
+                    continue
+                logger.error(
+                    "Failed to document table %s.%s: %s",
+                    schema_name,
+                    table_name,
+                    exc,
+                    exc_info=True,
+                )
+                # Return empty dict as fallback to allow pipeline to continue
+                return {}, table_description
+        logger.error(f"Max retries exceeded for {table_name}.{schema_name} due to rate limits.")
+        return {}, table_description
 
     def document_schema(
         self,
@@ -247,7 +264,7 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
 
         if not yaml_files:
             logger.warning("No YAML files found in %s", schema_yaml_dir)
-            return
+            return SchemaDocumentationSummary(tables_total=0, documented=0, failed=0)
 
         logger.info("Found %d table YAML files to document", len(yaml_files))
 
@@ -286,20 +303,23 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
                 columns = table_data.get("columns", [])
 
                 table_data["description"] = table_description or table_data.get("description", "")
-
+                # logger.debug(f"Documenting table {schema_name}.{table_name} with description: {table_description[:100]}")
+                
                 if not columns:
                     logger.info("No columns to document in %s", yaml_file)
                     successful += 1
                     continue
 
                 # Generate documentation using LLM
-                doc_map = self.document_table(
+                doc_map, rewritten_description = self.document_table(
                     table_name=table_name,
                     schema_name=schema_name,
                     table_description=table_description,
                     columns=columns,
                     business_intro=business_intro,
                 )
+
+                table_data["description"] = rewritten_description or table_data.get("description", "")
 
                 if not doc_map:
                     logger.warning("No documentation generated for %s", yaml_file)
@@ -327,7 +347,8 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
                         all_keywords.update(col.get("keywords", []))
                     # Take top 10 most common keywords
                     table_data["keywords"] = sorted(all_keywords)[:10]
-
+                logger.debug("Updated table keywords: %s", table_data["keywords"])
+                
                 # Write updated YAML back to file
                 with yaml_file.open("w", encoding="utf-8") as handle:
                     yaml.dump(
@@ -335,11 +356,14 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
                         handle,
                         default_flow_style=False,
                         allow_unicode=True,
-                        sort_keys=False,
+                        sort_keys=False
                     )
 
                 logger.info("✅ Updated documentation in %s", yaml_file)
                 successful += 1
+
+                # Throttle to avoid rate limits
+                time.sleep(10)
 
             except Exception as exc:
                 logger.error("Failed to process %s: %s", yaml_file, exc, exc_info=True)
@@ -352,6 +376,12 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
             successful,
             failed,
             len(yaml_files),
+        )
+
+        return SchemaDocumentationSummary(
+            tables_total=len(yaml_files),
+            documented=successful,
+            failed=failed,
         )
 
     def _load_schema_index(self, schema_yaml_dir: Path) -> Mapping[Tuple[str, str], Dict[str, Any]]:
@@ -392,13 +422,15 @@ Generate business-friendly descriptions and exactly 3 keywords for each column."
         return fallback
 
     def _intro_snippet(self, business_intro: str) -> str:
+        """
+        Return a cleaned-up version of the business intro, removing excessive blank lines and leading/trailing whitespace,
+        but preserving the full content for LLM context.
+        """
         if not business_intro:
             return ""
-        for line in business_intro.splitlines():
-            clean = line.strip()
-            if clean:
-                return clean[:300]
-        return business_intro.strip()[:300]
+        # Remove lines that are only whitespace, but keep all actual content and structure
+        lines = [line.rstrip() for line in business_intro.splitlines() if line.strip()]
+        return "\n".join(lines).strip()
 
     def _combine_with_intro(self, description: str, intro_snippet: str) -> str:
         parts = []
@@ -415,7 +447,7 @@ def document_database_schema(
     intro_template_path: Path,
     model: str = "llama-3.3-70b-versatile",
     temperature: float = 0.2,
-) -> None:
+) -> SchemaDocumentationSummary:
     """Main entry point to document a database schema using LLM-generated descriptions.
 
     This function creates a SchemaDocumentingAgent and processes all table YAML files
@@ -449,9 +481,10 @@ def document_database_schema(
         agent = SchemaDocumentingAgent(model=model, temperature=temperature)
 
         # Process all schema files
-        agent.document_schema(schema_output_dir, intro_template_path)
+        summary = agent.document_schema(schema_output_dir, intro_template_path)
 
         logger.info("✅ Schema documentation complete for %s", database_name)
+        return summary
 
     except Exception as exc:
         logger.error(
@@ -462,6 +495,7 @@ def document_database_schema(
 
 __all__ = [
     "SchemaDocumentingAgent",
+    "SchemaDocumentationSummary",
     "document_database_schema",
     "ColumnDocumentation",
     "TableDocumentation",

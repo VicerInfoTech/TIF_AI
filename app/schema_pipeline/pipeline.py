@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Optional
 
-from app.schema_pipeline.builder import BuilderSettings, SchemaGraphBuilder
+from app.schema_pipeline.builder import SchemaGraphBuilder
+from app.models import BuilderSettings
 from app.schema_pipeline.introspector import SQLServerMetadataExtractor
 from app.schema_pipeline.writer import YamlSchemaWriter
 from app.utils.logger import setup_logging
