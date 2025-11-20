@@ -31,6 +31,7 @@ from app.agent.chain import (
     default_collection_name,
     get_cached_agent,
     get_collected_tables,
+    summarize_query_results,
 )
 from app.config import get_database_settings
 from app.core import query_executor, result_formatter, sql_validator
@@ -184,9 +185,10 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         agent_output: Dict[str, Any] | None = None
         selected_tables: List[str] = []
         last_error: Exception | None = None
+        successful_provider: str | None = None
 
         for provider in providers:
-            agent = get_cached_agent(provider, request.db_flag, db_intro)
+            agent = get_cached_agent(provider, request.db_flag)
             try:
                 with agent_context(request.db_flag, collection_name):
                     agent_output = agent.invoke(
@@ -201,6 +203,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                     )
                     selected_tables = get_collected_tables()
                 logger.info("Generated SQL using provider=%s", provider)
+                successful_provider = provider
                 break
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
@@ -215,8 +218,10 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                 detail=detail,
             )
 
+
         raw_output = _extract_agent_output(agent_output)
         sql_generated = _sanitize_sql(raw_output)
+        logger.info("Generated SQL (raw): %s", sql_generated)
         if not sql_generated:
             logger.error("Agent returned empty SQL output")
             raise HTTPException(
@@ -226,6 +231,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
 
         validation_result = sql_validator.validate_sql(sql_generated)
         validation_ok = validation_result.get("valid", False)
+        logger.info("Validated SQL: %s (valid=%s, reason=%s)", sql_generated, validation_ok, validation_result.get("reason"))
         if not validation_ok:
             logger.warning("SQL validation failed: %s", validation_result.get("reason"))
             return QueryResponse(
@@ -309,6 +315,13 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             elapsed_ms,
         )
 
+        result_data = formatted.get("data") or {}
+        natural_summary = None
+        if successful_provider:
+            describe_text = result_data.get("describe_text", "")
+            raw_json = result_data.get("raw_json", "")
+            natural_summary = summarize_query_results(successful_provider, describe_text, raw_json)
+
         return QueryResponse(
             status="success",
             sql=sql_generated,
@@ -322,6 +335,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                 total_rows=total_rows,
                 retry_count=0,
             ),
+            natural_summary=natural_summary,
             token_usage=None,
         )
 
@@ -427,6 +441,8 @@ async def run_schema_pipeline(request: SchemaPipelineRequest) -> SchemaPipelineR
             message="Schema extraction completed",
         )
 
+        logger.info("Schema extraction completed: tables_exported=%d", outcome.tables_exported)
+        
         if request.run_documentation:
             doc_summary = outcome.documentation_summary
             if doc_summary is None:

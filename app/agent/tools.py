@@ -90,24 +90,24 @@ def search_tables_tool(query: str, k: int = 4) -> str:
 	formatted = []
 	for doc in docs:
 		table_name = doc.metadata.get("table_name") or doc.metadata.get("table")
-		schema = doc.metadata.get("schema", "dbo")
+		db_schema = doc.metadata.get("schema", "dbo")
 		_record_table(table_name)
 		formatted.append(
-			f"Table: {table_name} (schema={schema})\nSummary: {doc.page_content.strip()}"
+			f"Table: {table_name} (schema={db_schema})\nSummary: {doc.page_content.strip()}"
 		)
 	return "\n\n".join(formatted)
 
 
 @tool("fetch_table_summary", return_direct=False)
-def fetch_table_summary_tool(table_name: str, schema: str | None = None) -> str:
+def fetch_table_summary_tool(table_name: str, db_schema: str | None = None) -> str:
 	"""Retrieve the minimal summary chunk for a given table."""
 
 	if not table_name.strip():
 		return "Table name is required."
 	collection = _require_collection()
 	filters = _filters_with_context({"section": "summary", "table_name": table_name})
-	if schema:
-		filters.setdefault("schema", schema)
+	if db_schema:
+		filters.setdefault("schema", db_schema)
 	docs = vector_search(f"summary for {table_name}", collection, filters=filters, k=1)
 	if not docs:
 		return f"No summary found for table {table_name}."
@@ -116,7 +116,7 @@ def fetch_table_summary_tool(table_name: str, schema: str | None = None) -> str:
 
 
 @tool("fetch_table_section", return_direct=False)
-def fetch_table_section_tool(table_name: str, section: str, schema: str | None = None) -> str:
+def fetch_table_section_tool(table_name: str, section: str, db_schema: str | None = None) -> str:
 	"""Retrieve a structured section (columns, relationships, stats) for a table."""
 
 	if section not in VALID_SECTIONS:
@@ -125,8 +125,8 @@ def fetch_table_section_tool(table_name: str, section: str, schema: str | None =
 		return "Table name is required."
 	collection = _require_collection()
 	filters = _filters_with_context({"section": section, "table_name": table_name})
-	if schema:
-		filters.setdefault("schema", schema)
+	if db_schema:
+		filters.setdefault("schema", db_schema)
 	docs = vector_search(f"{section} for {table_name}", collection, filters=filters, k=1)
 	if not docs:
 		return f"No {section} section found for table {table_name}."

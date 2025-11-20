@@ -19,20 +19,7 @@ DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL_NAME", "jinaai/jina-embeddi
 
 def default_collection_name(db_flag: str) -> str:
 	"""Resolve the PGVector collection name for a database flag."""
-
 	normalized_flag = (db_flag or "").strip()
-	if not normalized_flag:
-		return os.getenv("PGVECTOR_COLLECTION_NAME", "default_docs")
-
-	env_key = f"PGVECTOR_COLLECTION_NAME_{normalized_flag.upper()}"
-	per_db = os.getenv(env_key)
-	if per_db:
-		return per_db
-
-	global_default = os.getenv("PGVECTOR_COLLECTION_NAME")
-	if global_default:
-		return global_default
-
 	return f"{normalized_flag}_docs"
 
 

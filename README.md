@@ -1,115 +1,183 @@
 # SQL Insight Agent
 
-LangGraph-based agentic SQL query system for MySQL.
+A LangGraph-based, agentic SQL query system for SQL Server and MySQL, with natural language to SQL, schema-driven intelligence, and secure validation. Built with FastAPI, Groq/Gemini LLMs, and YAML-based schema introspection.
+
+---
 
 ## Features
-- Natural language to SQL
-- Multi-DB support
-- Secure validation
-- FastAPI API
-- Groq LLM integration
-- Dual-agent pipeline (business intent + SQL execution)
-- YAML-driven schema intelligence with deterministic join planning
+- Natural language to SQL (NL2SQL) API
+- Multi-database support (add new DBs via config)
+- Secure, read-only SQL validation (prevents unsafe queries)
+- FastAPI HTTP API with OpenAPI docs
+- Groq and Gemini LLM integration (provider fallback)
+- Dual-agent pipeline: business intent → SQL generation
+- YAML-driven schema intelligence (automatic join planning, table/column search)
+- Schema extraction, documentation, and embedding pipeline
+- PGVector/PGVector-backed Postgres for schema embeddings
+- Structured logging to file and console
 
-## Architecture Overview
+---
 
-```
-User NL Query
-	│
-	▼
-+----------------------+      +------------------------------+
-| Business Intent Agent|      | Schema Toolkit (YAML loader) |
-| (Groq + Pydantic)    |◀────▶| search/describe/join helpers |
-+----------------------+      +------------------------------+
-				│ structured BusinessQuerySpec
-				▼
-+----------------------+      +-------------------+
-| LangGraph SQL Agent  |─────▶| SQL Validator/DB  |
-| (planner + generator)|◀────▶| Execution/Results |
-+----------------------+      +-------------------+
+## Quickstart
+
+### 1. Clone & Install
+```sh
+git clone <your-repo-url>
+cd sql-insight-agent
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+pip install -r requirements.txt
 ```
 
-- **Business Intent Agent**: single-shot Groq workflow that converts natural language into a `BusinessQuerySpec` (entities, metrics, dimensions, filters, time range).
-- **Schema Toolkit**: loads `config/schemas/<db>` YAML artifacts, exposes table search, descriptions, and automatic join-path discovery.
-- **SQL Agent**: the existing LangGraph with new nodes: `load_config → analyze_intent → select_schema → plan_sql → generate_sql → validate_sql → execute_query → format_results`.
-- Both agents share the schema toolkit so LLMs never hallucinate tables/columns outside the documented metadata.
 
-## Schema Pipeline API
+### 2. Environment Variables
+Create a `.env` file in the project root. The following environment variables are supported:
 
-The schema pipeline exposes a single API that performs extraction, documentation,
-and embedding generation in one request. This replaces the previous CLI helpers
-and ensures the FastAPI server is the single source of truth for schema
-workflows. All YAML artifacts remain under `config/schemas/<db_flag>`, just like
-before, but the API now orchestrates every stage for you.
+#### LLM Providers
+- `GROQ_API_KEY` — API key for Groq LLM (required for Groq-based agent)
+- `GOOGLE_API_KEY` — API key for Gemini/Google LLM (required for Gemini-based agent)
 
+#### Database/Vector Store
+- `POSTGRES_CONNECTION_STRING` — Connection string for your PGVector-enabled Postgres instance (required for schema embeddings)
+
+#### Optional/Advanced
+- `<DB_FLAG>_CONNECTION_STRING` — Override the connection string for a specific database (e.g., `AVAMED_DB_CONNECTION_STRING`)
+- `<DB_FLAG>_MAX_ROWS` — Override the max rows for a specific database
+- `<DB_FLAG>_QUERY_TIMEOUT` — Override the query timeout for a specific database
+
+Example `.env`:
+```
+GROQ_API_KEY=your-groq-api-key
+GOOGLE_API_KEY=your-google-api-key
+POSTGRES_CONNECTION_STRING=postgresql://user:password@host:5432/dbname
+AVAMED_DB_CONNECTION_STRING=DRIVER={ODBC Driver 17 for SQL Server};SERVER=host;DATABASE=avamed_db;UID=user;PWD=pass
+```
+
+### 3. Database Configuration
+Edit `config/database_config.json` to add your database(s):
 ```json
-POST /schemas/pipeline
+{
+  "databases": {
+    "avamed_db": {
+      "connection_string": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=host;DATABASE=avamed_db;UID=user;PWD=pass",
+      "intro_template": "config/db_intro/avamed_db_intro.txt",
+      "description": "AvasMed DME management database",
+      "max_rows": 1000,
+      "query_timeout": 30,
+      "exclude_column_matches": false
+    }
+  }
+}
+```
+- Add a new block for each DB you want to support.
+- `intro_template` is a path to a text file describing the business context for the DB.
+
+### 4. Run the API
+```sh
+uv run ./run.py
+# or
+python -m app.main
+```
+
+API will be available at: http://127.0.0.1:8000
+
+---
+
+## API Endpoints
+
+### Query Endpoint
+- `POST /query`
+- Request body:
+```json
+{
+  "query": "Show me all orders for September 2025",
+  "db_flag": "avamed_db"
+}
+```
+- Returns: SQL, results (CSV, JSON, describe), and a natural-language summary.
+
+### Schema Embedding
+- `POST /schemas/embeddings`
+- Request body:
+```json
 {
   "db_flag": "avamed_db",
-  "collection_name": "boxmaster_docs",
+  "collection_name": "avamed_db_docs"
+}
+```
+- Stores schema embeddings in PGVector.
+
+### Unified Schema Pipeline
+- `POST /schemas/pipeline`
+- Request body:
+```json
+{
+  "db_flag": "avamed_db",
+  "collection_name": "avamed_db_docs",
   "run_documentation": true,
   "run_embeddings": true
 }
 ```
+- Runs extraction, documentation, and embedding in one call.
 
-- **Behavior**: generates the YAML schema artifacts, enriches them via the
-  Groq-based documentation agent, converts each table to the ultra-minimal text
-  format, and persists embeddings for later retrieval.
-- **Control**: skip documentation or embedding by setting `run_documentation`
-  or `run_embeddings` to `false`. Provide `postgres_connection_string` in the
-  payload or via `POSTGRES_CONNECTION_STRING` so the embedding stage can access
-  the PGVector-backed Postgres database.
-- **Result**: the endpoint returns a structured summary of each stage (tables
-  exported, documented, minimal files written, and the number of document
-  chunks stored), enabling quick sanity checks before running downstream agents.
+---
 
-All schema artifacts are still grouped per schema (tables, views, functions) and
-include `schema_index.yaml`, but you no longer need separate scripts to keep
-them in sync.
+## Schema Management
+- All schema YAMLs live under `config/schemas/<db_flag>/`.
+- The pipeline API will extract, document, and embed all tables automatically.
+- No manual scripts needed—just call the API.
 
-## Logging and traceability
+---
 
-The agent uses `app/utils/logger.py` to emit structured logs to both console and
-a daily file (`Log/app_YYYY-MM-DD.log`). The logger already sets `DEBUG` level,
-so you can follow every node's progress when the server is running:
+## Logging
+- Logs are written to `Log/app_YYYY-MM-DD.log` and the console.
+- Log level is `DEBUG` by default for full traceability.
 
-- `load_config` logs when the YAML schema toolkit is initialized and how many
-  tables were loaded.
-- `business_intent_node` logs how many schema summaries were provided and a
-  high-level summary of the `BusinessQuerySpec` that was produced.
-- `select_schema_node` reports the chosen table files and join summary size.
-- `plan_sql_node` and `generate_sql_node` log prompt lengths, plan sizes, and
-  token usage.
-- `execute_query_node` reports execution success, row counts, and elapsed time,
-  while `format_results_node` logs the final response status.
+---
 
-If you need more verbose output, adjust the formatter in `app/utils/logger.py`
-or add additional `logger.debug` statements in the nodes as required.
+## Security
+- Only SELECT queries are allowed (no DML/DDL).
+- Semicolons are only allowed as a single trailing character.
+- All SQL is validated before execution.
 
-## Schema embedding API
+---
 
-- Endpoint: `POST /schemas/embeddings`
-- Payload: `{ "db_flag": "avamed_db", "collection_name": "boxmaster_docs" }`
-- Environment: Set `POSTGRES_CONNECTION_STRING` to point at your PgVector-backed Postgres instance.
-- Behavior: iterates the YAML files directly under `config/schemas/<db_flag>`, converts each to the ultra-minimal `temp_output/minimal/<db_flag>/<table>_minimal.txt` format, chunks the text, computes embeddings using `jinaai/jina-embeddings-v3`, and stores the results into the specified PGVector collection.
-- Response: describe the processed files, output directory, and a short message.
+## Adding a New Database
+1. Add a new entry in `config/database_config.json`.
+2. Place a business intro text file in `config/db_intro/`.
+3. Place schema YAMLs in `config/schemas/<db_flag>/` (or use the pipeline API to generate them).
+4. Restart the API server.
 
-Use this route whenever you regenerate schema YAMLs and want the matching embeddings refreshed for downstream LangGraph workflows.
+---
 
-## Unified schema pipeline API
+## Troubleshooting
+- If you see Pydantic path warnings, ensure all paths in config are strings, not Path objects.
+- If LLM queries fail, check your API keys and network access.
+- For embedding, ensure your Postgres instance is running and accessible.
 
-- Endpoint: `POST /schemas/pipeline`
-- Payload example:
-  ```json
-  {
-    "db_flag": "avamed_db",
-    "collection_name": "boxmaster_docs",
-    "run_documentation": true,
-    "run_embeddings": true
-  }
-  ```
-- Environment: ensure `POSTGRES_CONNECTION_STRING` (or the optional `postgres_connection_string` payload field) points to a Postgres instance configured with PGVector.
-- Behavior: runs the full extraction, documentation, and embedding flow and returns a structured report summarizing each stage (tables exported, documentation stats, embedding counts).
-- Response: details per stage (`extraction`, `documentation`, `embeddings`) including success/skip state, counts, and output directories so you can quickly verify what changed.
+---
 
-Use this comprehensive route when you want to regenerate everything from scratch and immediately refresh the embeddings used by downstream agents.
+## Project Structure
+```
+app/
+  main.py           # FastAPI entrypoint
+  config.py         # Config loader
+  models.py         # Pydantic models
+  agent/            # LLM agent logic, prompts, tools
+  core/             # SQL, result formatting, retriever
+  schema_pipeline/  # Schema extraction, embedding, docs
+  utils/            # Logging, token tracking
+config/
+  database_config.json
+  schemas/<db_flag>/
+  db_intro/
+Log/
+tests/
+run.py
+README.md
+```
+
+---
+
+## License
+MIT

@@ -29,7 +29,7 @@ class SchemaPipelineOrchestrator:
         *,
         include_schemas: Iterable[str] | None = None,
         exclude_schemas: Iterable[str] | None = None,
-        collection_name: str = "boxmaster_docs",
+        collection_name: str | None = None,
         chunk_size: int = 2000,
         chunk_overlap: int = 100,
         embedding_mode: str = "structured",
@@ -40,7 +40,8 @@ class SchemaPipelineOrchestrator:
         self.db_flag = db_flag
         self.include_schemas = include_schemas
         self.exclude_schemas = exclude_schemas
-        self.collection_name = collection_name
+        # Default collection_name to f"{db_flag}_docs" if not provided
+        self.collection_name = collection_name if collection_name is not None else f"{db_flag}_docs"
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.embedding_mode = embedding_mode

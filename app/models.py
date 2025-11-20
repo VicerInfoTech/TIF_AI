@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 from dataclasses import dataclass, field
 
 
+
 class DatabaseSettings(BaseModel):
     """Configuration options for a single database target."""
     connection_string: str = Field(..., min_length=1)
@@ -18,7 +19,6 @@ class DatabaseSettings(BaseModel):
     max_rows: int = Field(1000, ge=1, description="Maximum rows the agent should fetch")
     query_timeout: int = Field(30, ge=1, description="Query timeout in seconds")
     exclude_column_matches: bool = Field(False, description="Skip column name/keyword matches when searching tables")
-    alias_map_file: Optional[str] = Field(None, description="Path to YAML/JSON file mapping business terms to canonical table names")
 
     # No path coercion needed now that ddl_file is removed
     
@@ -105,7 +105,7 @@ class TableDetail(BaseModel):
     """Complete table metadata used during planning and SQL generation."""
 
     table_name: str
-    schema: str
+    db_schema: str = Field(..., description="Database schema that owns the table")
     description: Optional[str] = None
     keywords: List[str] = Field(default_factory=list)
     columns: List[ColumnInfo] = Field(default_factory=list)
@@ -204,18 +204,35 @@ class ExecutionMetadata(BaseModel):
     retry_count: int = Field(0, description="Number of retries performed")
 
 
+class QueryResultData(BaseModel):
+    """Structured metadata returned for a successful query."""
+
+    results: Any = Field(..., description="Primary result payload in the requested format")
+    sql: str = Field(..., description="SQL that generated the payload")
+    row_count: int = Field(..., description="Total number of rows returned")
+    execution_time_ms: Optional[float] = Field(None, description="Execution time in milliseconds")
+    csv: str = Field(..., description="Full result set serialized as CSV")
+    raw_json: str = Field(..., description="Full result set serialized as JSON")
+    describe: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="Describe() summary per column")
+    describe_text: str = Field("", description="Textual `describe()` output")
+
+
 class QueryResponse(BaseModel):
     """Response model for query execution."""
 
     status: str = Field(..., description="Response status (success or error)")
     sql: Optional[str] = Field(None, description="Generated SQL query")
     validation_passed: Optional[bool] = Field(None, description="Whether SQL passed validation")
-    data: Optional[Dict[str, Any]] = Field(None, description="Query results in requested format")
+    data: Optional[QueryResultData] = Field(None, description="Query results envelope")
     error: Optional[str] = Field(None, description="Error message if status is error")
     selected_tables: Optional[List[str]] = Field(None, description="Tables selected for this query")
     keyword_matches: Optional[List[str]] = Field(None, description="Tokens used for schema selection")
     metadata: ExecutionMetadata = Field(default_factory=ExecutionMetadata)
     token_usage: Optional[Dict[str, Any]] = Field(None, description="Token usage metrics")
+    natural_summary: Optional[str] = Field(
+        None,
+        description="LLM-generated natural language summary of the returned dataset",
+    )
 
 
 class SchemaEmbeddingRequest(BaseModel):

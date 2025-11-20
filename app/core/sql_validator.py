@@ -16,6 +16,8 @@ def validate_sql(sql: str) -> Dict[str, object]:
 	"""Validate SQL is read-only and safe."""
 
 	trimmed = sql.strip()
+	if trimmed.endswith(";"):
+		trimmed = trimmed[:-1].strip()
 	if not trimmed:
 		return {"valid": False, "reason": "Empty SQL statement"}
 

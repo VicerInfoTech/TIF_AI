@@ -55,15 +55,8 @@ def _override_with_env(db_key: str, settings: DatabaseSettings) -> DatabaseSetti
 	# Only resolve paths that are referenced in configuration JSON
 	resolved = {
 		"connection_string": os.path.expandvars(settings.connection_string),
-		"intro_template": _resolve_path(Path(settings.intro_template)),
+		"intro_template": str(_resolve_path(Path(settings.intro_template))),
 	}
-	if settings.alias_map_file:
-		# Only resolve alias map if the file exists; keep the raw value otherwise
-		alias_path = PROJECT_ROOT / settings.alias_map_file if not Path(settings.alias_map_file).is_absolute() else Path(settings.alias_map_file)
-		if alias_path.exists():
-			resolved["alias_map_file"] = str(alias_path.resolve())
-		else:
-			resolved["alias_map_file"] = settings.alias_map_file
 
 	return settings.model_copy(update=resolved)
 
