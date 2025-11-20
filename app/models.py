@@ -227,6 +227,10 @@ class QueryResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if status is error")
     selected_tables: Optional[List[str]] = Field(None, description="Tables selected for this query")
     keyword_matches: Optional[List[str]] = Field(None, description="Tokens used for schema selection")
+    follow_up_questions: Optional[List[str]] = Field(
+        None,
+        description="Additional follow-up questions the agent would ask to clarify intent",
+    )
     metadata: ExecutionMetadata = Field(default_factory=ExecutionMetadata)
     token_usage: Optional[Dict[str, Any]] = Field(None, description="Token usage metrics")
     natural_summary: Optional[str] = Field(
@@ -267,21 +271,15 @@ class SchemaPipelineRequest(BaseModel):
     """Request payload for the full schema pipeline API."""
 
     db_flag: str = Field(..., min_length=1, description="Target schema folder flag")
+    db_type: str = Field(..., description="Database provider identifier, e.g. sqlserver")
+    connection_string: str = Field(..., min_length=1, description="Connection string for the target database")
+    description: Optional[str] = Field(None, description="User-friendly description of the database")
+    intro_template: Optional[str] = Field(None, description="Path to the business intro template")
+    exclude_column_matches: bool = Field(False, description="Skip column name/keyword matches when searching tables")
     include_schemas: Optional[List[str]] = Field(None, description="Optional schema whitelist")
     exclude_schemas: Optional[List[str]] = Field(None, description="Optional schema blacklist")
     run_documentation: bool = Field(True, description="Whether to run the documentation stage")
     run_embeddings: bool = Field(True, description="Whether to run the embedding stage")
-    collection_name: str = Field(
-        "boxmaster_docs",
-        min_length=1,
-        description="PGVector collection name for embeddings",
-    )
-    embedding_chunk_size: int = Field(1000, ge=1, description="Chunk size for RecursiveCharacterTextSplitter")
-    embedding_chunk_overlap: int = Field(100, ge=0, description="Chunk overlap for text splitter")
-    postgres_connection_string: Optional[str] = Field(
-        None,
-        description="Overrides the POSTGRES_CONNECTION_STRING environment variable",
-    )
 
 
 class ExtractionStageSummary(BaseModel):
@@ -341,12 +339,7 @@ class RawMetadata:
     indexes: list[dict[str, Any]]
     unique_constraints: list[dict[str, Any]]
     check_constraints: list[dict[str, Any]]
-    views: list[dict[str, Any]]
-    view_columns: list[dict[str, Any]]
-    procedures: list[dict[str, Any]]
-    procedure_parameters: list[dict[str, Any]]
-    functions: list[dict[str, Any]]
-    function_parameters: list[dict[str, Any]]
+    # views and view_columns removed: pipeline only extracts tables and related metadata
 
 
 @dataclass(slots=True)

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Literal, Sequence, Tuple
+from typing import Iterable, Sequence, Tuple
 
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -87,7 +86,7 @@ class SchemaEmbeddingPipeline:
 
     def _list_yaml_files(self) -> list[Path]:
         excluded = {"schema_index.yaml", "metadata.yaml"}
-        exclude_dirs = {"_function", "_functions", "_procedure", "_procedures", "_view", "_views"}
+        exclude_dirs = set()
         files = []
         for child in self.target_dir.rglob("*.yaml"):
             if (

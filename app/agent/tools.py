@@ -5,7 +5,6 @@ from __future__ import annotations
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Dict, Iterator, List
-
 from langchain.tools import tool
 
 from app.core import sql_validator

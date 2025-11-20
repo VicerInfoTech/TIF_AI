@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # pylint: disable=duplicate-code
 import re
+from datetime import datetime
 from os import getenv
 from pathlib import Path
 from time import perf_counter
@@ -31,9 +32,13 @@ from app.agent.chain import (
     default_collection_name,
     get_cached_agent,
     get_collected_tables,
+    parse_structured_response,
     summarize_query_results,
 )
-from app.config import get_database_settings
+from app.user_db_config_loader import get_user_database_settings, PROJECT_ROOT
+from db.model import DatabaseConfig
+from db.database_manager import create_metadata_tables, get_project_db_connection_string, get_session
+from sqlalchemy.exc import SQLAlchemyError
 from app.core import query_executor, result_formatter, sql_validator
 from app.schema_pipeline import SchemaPipelineOrchestrator
 from app.schema_pipeline.embedding_pipeline import (
@@ -41,6 +46,9 @@ from app.schema_pipeline.embedding_pipeline import (
     SchemaEmbeddingSettings,
 )
 from app.utils.logger import setup_logging
+from db.database_manager import get_session
+from db.model import DatabaseConfig
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 # Initialize logging
 logger = setup_logging(__name__)
@@ -172,7 +180,14 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             request.output_format,
         )
 
-        db_settings = get_database_settings(request.db_flag)
+        try:
+            db_settings = get_user_database_settings(request.db_flag)
+        except KeyError as exc:  # pragma: no cover - handled explicitly
+            logger.error("Configuration error loading db_flag=%s: %s", request.db_flag, str(exc))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown database: {str(exc)}",
+            ) from exc
         db_config = db_settings.model_dump()
         db_intro = _load_db_intro(
             request.db_flag,
@@ -181,11 +196,39 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         )
         collection_name = default_collection_name(request.db_flag)
 
-        providers = ("groq", "gemini")
+        # If you want to auto-select provider by API key, use get_llm(None) logic
+        providers = []
+        selected_provider = None
+        try:
+            # Try to auto-select provider by key
+            llm = get_cached_agent.__wrapped__.__globals__["get_llm"](None)
+            # Find which provider was selected by inspecting llm class or env
+            # This is a best-effort guess; you may want to improve this logic
+            if hasattr(llm, "model_name"):
+                model_name = getattr(llm, "model_name", "").lower()
+                if "openai" in model_name:
+                    selected_provider = "openai"
+                elif "openrouter" in model_name or "kat-coder" in model_name:
+                    selected_provider = "openrouter"
+                elif "deepseek" in model_name:
+                    selected_provider = "deepseek"
+                elif "llama" in model_name or "groq" in model_name:
+                    selected_provider = "groq"
+                elif "claude" in model_name or "anthropic" in model_name:
+                    selected_provider = "anthropic"
+                elif "gemini" in model_name:
+                    selected_provider = "gemini"
+            if not selected_provider:
+                selected_provider = "openai"  # fallback
+            providers = [selected_provider]
+        except Exception as exc:
+            logger.warning(f"Provider auto-selection failed: {exc}")
+            providers = ["openai"]
         agent_output: Dict[str, Any] | None = None
         selected_tables: List[str] = []
         last_error: Exception | None = None
         successful_provider: str | None = None
+        follow_up_questions: List[str] | None = None
 
         for provider in providers:
             agent = get_cached_agent(provider, request.db_flag)
@@ -218,8 +261,13 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                 detail=detail,
             )
 
-
-        raw_output = _extract_agent_output(agent_output)
+        structured_llm_response = parse_structured_response(agent_output)
+        if structured_llm_response:
+            raw_output = structured_llm_response.sql_query
+            # Preserve empty list (do not coerce to None) for API clients that expect an array
+            follow_up_questions = structured_llm_response.follow_up_questions
+        else:
+            raw_output = _extract_agent_output(agent_output)
         sql_generated = _sanitize_sql(raw_output)
         logger.info("Generated SQL (raw): %s", sql_generated)
         if not sql_generated:
@@ -242,6 +290,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                 error=validation_result.get("reason"),
                 selected_tables=selected_tables or None,
                 keyword_matches=None,
+                follow_up_questions=follow_up_questions,
                 metadata=ExecutionMetadata(
                     execution_time_ms=None,
                     total_rows=None,
@@ -263,6 +312,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                 error=execution.get("error"),
                 selected_tables=selected_tables or None,
                 keyword_matches=None,
+                follow_up_questions=follow_up_questions,
                 metadata=ExecutionMetadata(
                     execution_time_ms=elapsed_ms,
                     total_rows=None,
@@ -289,6 +339,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                 error=formatted.get("message", "Failed to format results"),
                 selected_tables=selected_tables or None,
                 keyword_matches=None,
+                follow_up_questions=follow_up_questions,
                 metadata=ExecutionMetadata(
                     execution_time_ms=elapsed_ms,
                     total_rows=None,
@@ -326,10 +377,11 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             status="success",
             sql=sql_generated,
             validation_passed=True,
-            data=formatted.get("data"),
+            # data=formatted.get("data"),
             error=None,
             selected_tables=selected_tables or None,
             keyword_matches=None,
+            follow_up_questions=follow_up_questions,
             metadata=ExecutionMetadata(
                 execution_time_ms=elapsed_ms,
                 total_rows=total_rows,
@@ -344,12 +396,6 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid request: {str(e)}",
-        ) from e
-    except KeyError as e:
-        logger.error("Configuration error: %s", str(e))
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown database: {str(e)}",
         ) from e
     except Exception as e:
         logger.exception("Unexpected error during query execution: %s", str(e))
@@ -408,29 +454,61 @@ async def generate_schema_embeddings(request: SchemaEmbeddingRequest) -> SchemaE
         ) from error
 
 
-@app.post("/schemas/pipeline", response_model=SchemaPipelineResponse)
-async def run_schema_pipeline(request: SchemaPipelineRequest) -> SchemaPipelineResponse:
-    """Run extraction → documentation → embeddings and return a reported summary."""
-
+@app.post("/schemas/enroll", response_model=SchemaPipelineResponse)
+async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineResponse:
+    """Enroll and extract a database schema, run documentation and embeddings."""
     logger.info("Running schema pipeline for db_flag=%s", request.db_flag)
-    vector_connection = request.postgres_connection_string or getenv("POSTGRES_CONNECTION_STRING")
-    if request.run_embeddings and not vector_connection:
+    # POSTGRES_CONNECTION_STRING is now handled internally by the orchestrator
+
+    try:
+        project_connection = get_project_db_connection_string()
+        create_metadata_tables(project_connection)
+        db_row = _fetch_or_create_database_config(request, project_connection)
+    except SQLAlchemyError as err:
+        logger.error("DatabaseConfig check/insert failed: %s", err)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="POSTGRES_CONNECTION_STRING is required to generate embeddings",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"DatabaseConfig check/insert failed: {err}",
         )
 
+    if db_row.schema_extracted:
+        logger.info("Schema already extracted for db_flag=%s", request.db_flag)
+        extraction_output = PROJECT_ROOT / "config" / "schemas" / request.db_flag
+        extraction_summary = ExtractionStageSummary(
+            status="success",
+            output_directory=str(extraction_output),
+            tables_exported=0,
+            message="Database already enrolled and schema extraction is up to date",
+        )
+        documentation_stage = DocumentationStageSummary(
+            status="skipped",
+            tables_total=0,
+            documented=0,
+            failed=0,
+            message="Documentation skipped because schema already exists",
+        )
+        embeddings_stage = EmbeddingStageSummary(
+            status="skipped",
+            minimal_files=0,
+            document_chunks=0,
+            output_directory=str(SchemaEmbeddingPipeline.DEFAULT_OUTPUT_ROOT / request.db_flag),
+            message="Embedding skipped because schema already exists",
+        )
+        return SchemaPipelineResponse(
+            db_flag=request.db_flag,
+            extraction=extraction_summary,
+            documentation=documentation_stage,
+            embeddings=embeddings_stage,
+        )
+
+    # Now run the pipeline as before
     try:
         orchestrator = SchemaPipelineOrchestrator(
             request.db_flag,
             include_schemas=request.include_schemas,
             exclude_schemas=request.exclude_schemas,
-            collection_name=request.collection_name,
-            chunk_size=request.embedding_chunk_size,
-            chunk_overlap=request.embedding_chunk_overlap,
             run_documentation=request.run_documentation,
             run_embeddings=request.run_embeddings,
-            vector_connection_string=vector_connection,
         )
         outcome = orchestrator.run()
 
@@ -498,6 +576,8 @@ async def run_schema_pipeline(request: SchemaPipelineRequest) -> SchemaPipelineR
                 message="Embedding stage was skipped",
             )
 
+            _mark_schema_extracted(request.db_flag)
+
         return SchemaPipelineResponse(
             db_flag=request.db_flag,
             extraction=extraction_summary,
@@ -514,6 +594,52 @@ async def run_schema_pipeline(request: SchemaPipelineRequest) -> SchemaPipelineR
         ) from error
 
 
+def _fetch_or_create_database_config(request: SchemaPipelineRequest, project_connection: str) -> DatabaseConfig:
+    session = get_session(project_connection)
+    try:
+        db_row = session.query(DatabaseConfig).filter_by(db_flag=request.db_flag).first()
+        if db_row:
+            return db_row
+
+        db_row = DatabaseConfig(
+            db_flag=request.db_flag,
+            db_type=request.db_type,
+            connection_string=request.connection_string,
+            description=request.description,
+            intro_template=request.intro_template,
+            exclude_column_matches=request.exclude_column_matches,
+            # Set defaults internally for removed fields
+            max_rows=10000,
+            query_timeout=30,
+        )
+        session.add(db_row)
+        try:
+            session.commit()
+            session.refresh(db_row)
+            logger.info("Inserted new DatabaseConfig for db_flag=%s", request.db_flag)
+        except IntegrityError:
+            session.rollback()
+            db_row = session.query(DatabaseConfig).filter_by(db_flag=request.db_flag).first()
+            if not db_row:
+                raise
+        return db_row
+    finally:
+        session.close()
+
+
+def _mark_schema_extracted(db_flag: str) -> None:
+    session = get_session(get_project_db_connection_string())
+    try:
+        db_row = session.query(DatabaseConfig).filter_by(db_flag=db_flag).first()
+        if not db_row:
+            return
+        db_row.schema_extracted = True
+        db_row.schema_extraction_date = datetime.utcnow()
+        session.commit()
+    finally:
+        session.close()
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API documentation link."""
@@ -524,7 +650,7 @@ async def root():
         "endpoints": {
             "POST /query": "Execute natural language SQL query",
             "POST /schemas/embeddings": "Convert schema YAML definitions to embeddings",
-            "POST /schemas/pipeline": "Run schema extraction, documentation, and embedding",
+            "POST /schemas/enroll": "Enroll a database, extract schema, document, and embed",
             "GET /health": "Health check",
         },
     }

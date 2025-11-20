@@ -27,9 +27,6 @@ class SchemaGraphBuilder:
         logger.debug("Building structured schema payload for database %s", raw.database_name)
         schemas: Dict[str, Dict[str, Dict[str, Any]]] = defaultdict(lambda: {
             "tables": {},
-            "views": {},
-            "procedures": {},
-            "functions": {},
         })
 
         table_lookup: Dict[Tuple[str, str], Dict[str, Any]] = {}
@@ -44,8 +41,8 @@ class SchemaGraphBuilder:
         logger.debug("Processing %d tables for schema construction", len(raw.tables))
         
         for table_row in raw.tables:
-            schema_name = table_row["schema_name"]
-            table_name = table_row["table_name"]
+            schema_name = self._safe_str(table_row.get("schema_name"))
+            table_name = self._safe_str(table_row.get("table_name"))
             key = (schema_name, table_name)
             logger.debug("Building table payload for %s.%s", schema_name, table_name)
             column_entries = [self._build_column_dict(col) for col in columns.get(key, [])]
@@ -65,7 +62,6 @@ class SchemaGraphBuilder:
                 "description": table_row.get("table_description") or "",
                 "created_date": self._to_iso(table_row.get("create_date")),
                 "modified_date": self._to_iso(table_row.get("modify_date")),
-                # "row_count" removed
                 "columns": column_entries,
                 "primary_key": pk_entry,
                 "foreign_keys": fk_entry,
@@ -105,9 +101,7 @@ class SchemaGraphBuilder:
         relationship_summary = self._augment_many_to_many(table_lookup)
         logger.debug("Augmented many-to-many relationships, summary: %s", relationship_summary)
         
-        self._build_views(raw, schemas)
-        self._build_procedures(raw, schemas)
-        self._build_functions(raw, schemas)
+        # Views removed: builder no longer constructs view objects
 
         schema_index = self._build_schema_index(raw.database_name, schemas, relationship_summary)
         logger.debug("Successfully built schema index for database: %s", raw.database_name)
@@ -117,18 +111,22 @@ class SchemaGraphBuilder:
             "extracted_at": self._utc_now(),
             "total_schemas": len(schemas),
             "total_tables": sum(len(bucket["tables"]) for bucket in schemas.values()),
-            "total_views": sum(len(bucket["views"]) for bucket in schemas.values()),
-            "total_procedures": sum(len(bucket["procedures"]) for bucket in schemas.values()),
-            "total_functions": sum(len(bucket["functions"]) for bucket in schemas.values()),
+            # views removed; we only export tables
         }
         logger.debug("Metadata summary: %s", metadata_summary)
 
+        sanitized_schemas = self._sanitize_value(schemas)
+        sanitized_schema_index = self._sanitize_value(schema_index)
+        sanitized_metadata_summary = self._sanitize_value(metadata_summary)
+
+        logger.debug("Sanitized schema payloads for YAML emission")
+
         return DatabaseSchemaArtifacts(
             database_name=raw.database_name,
-            extracted_at=metadata_summary["extracted_at"],
-            schemas=schemas,  # type: ignore[arg-type]
-            schema_index=schema_index,
-            metadata_summary=metadata_summary,
+            extracted_at=sanitized_metadata_summary.get("extracted_at") or metadata_summary["extracted_at"],
+            schemas=sanitized_schemas,  # type: ignore[arg-type]
+            schema_index=sanitized_schema_index,
+            metadata_summary=sanitized_metadata_summary,
         )
 
     # ------------------------------------------------------------------
@@ -347,88 +345,8 @@ class SchemaGraphBuilder:
     # Builders for other object types
     # ------------------------------------------------------------------
 
-    def _build_views(self, raw: RawMetadata, schemas: Dict[str, Dict[str, Dict[str, Any]]]) -> None:
-        view_columns = self._group_by_keys(raw.view_columns, ("schema_name", "view_name"))
-        for row in raw.views:
-            schema_name = row["schema_name"]
-            view_name = row["view_name"]
-            columns = [
-                {
-                    "name": col["column_name"],
-                    "type": (col["data_type"] or "").lower(),
-                    "max_length": self._safe_int(col.get("max_length")),
-                    "is_nullable": bool(col.get("is_nullable", True)),
-                    "description": col.get("column_description") or "",
-                }
-                for col in view_columns.get((schema_name, view_name), [])
-            ]
-            schemas[schema_name]["views"][view_name] = {
-                "view_name": view_name,
-                "schema": schema_name,
-                "object_type": "view",
-                "description": row.get("view_description") or "",
-                "created_date": self._to_iso(row.get("create_date")),
-                "modified_date": self._to_iso(row.get("modify_date")),
-                "definition": row.get("definition"),
-                "columns": columns,
-                "keywords": [],
-            }
-
-    def _build_procedures(self, raw: RawMetadata, schemas: Dict[str, Dict[str, Dict[str, Any]]]) -> None:
-        parameters = self._group_by_keys(raw.procedure_parameters, ("schema_name", "procedure_name"))
-        for row in raw.procedures:
-            schema_name = row["schema_name"]
-            proc_name = row["procedure_name"]
-            params = [
-                {
-                    "name": param["parameter_name"],
-                    "type": (param["data_type"] or "").lower(),
-                    "max_length": self._safe_int(param.get("max_length")),
-                    "is_output": bool(param.get("is_output")),
-                    "has_default": bool(param.get("has_default_value")),
-                    "default_value": param.get("default_value"),
-                }
-                for param in parameters.get((schema_name, proc_name), [])
-            ]
-            schemas[schema_name]["procedures"][proc_name] = {
-                "procedure_name": proc_name,
-                "schema": schema_name,
-                "object_type": "procedure",
-                "description": row.get("procedure_description") or "",
-                "created_date": self._to_iso(row.get("create_date")),
-                "modified_date": self._to_iso(row.get("modify_date")),
-                "definition": row.get("definition"),
-                "parameters": params,
-                "keywords": [],
-            }
-
-    def _build_functions(self, raw: RawMetadata, schemas: Dict[str, Dict[str, Dict[str, Any]]]) -> None:
-        parameters = self._group_by_keys(raw.function_parameters, ("schema_name", "function_name"))
-        for row in raw.functions:
-            schema_name = row["schema_name"]
-            func_name = row["function_name"]
-            params = [
-                {
-                    "name": param["parameter_name"],
-                    "type": (param["data_type"] or "").lower(),
-                    "max_length": self._safe_int(param.get("max_length")),
-                    "has_default": bool(param.get("has_default_value")),
-                    "default_value": param.get("default_value"),
-                }
-                for param in parameters.get((schema_name, func_name), [])
-            ]
-            schemas[schema_name]["functions"][func_name] = {
-                "function_name": func_name,
-                "schema": schema_name,
-                "object_type": "function",
-                "function_type": (row.get("function_type") or "").lower(),
-                "description": row.get("function_description") or "",
-                "created_date": self._to_iso(row.get("create_date")),
-                "modified_date": self._to_iso(row.get("modify_date")),
-                "definition": row.get("definition"),
-                "parameters": params,
-                "keywords": [],
-            }
+    # Views removed: builder no longer builds view YAML data. If you want to re-enable
+    # views later, re-introduce this method and re-add view_columns to RawMetadata.
 
     # ------------------------------------------------------------------
     # Schema index + helpers
@@ -441,9 +359,7 @@ class SchemaGraphBuilder:
         relationship_summary: Dict[str, Any],
     ) -> Dict[str, Any]:
         tables_payload: List[Dict[str, Any]] = []
-        views_payload: List[Dict[str, Any]] = []
-        procs_payload: List[Dict[str, Any]] = []
-        funcs_payload: List[Dict[str, Any]] = []
+        # views removed; don't build views payload
         for schema_name, bucket in schemas.items():
             for table_name, table in bucket["tables"].items():
                 tables_payload.append(
@@ -459,62 +375,23 @@ class SchemaGraphBuilder:
                         "short_description": table.get("description") or "",
                     }
                 )
-            for view_name, view in bucket["views"].items():
-                views_payload.append(
-                    {
-                        "view": view_name,
-                        "schema": schema_name,
-                        "object_type": "view",
-                        "keywords": view["keywords"],
-                        "column_names": [col["name"] for col in view["columns"]],
-                        "short_description": view.get("description") or "",
-                    }
-                )
-            for proc_name, proc in bucket["procedures"].items():
-                procs_payload.append(
-                    {
-                        "procedure": proc_name,
-                        "schema": schema_name,
-                        "object_type": "procedure",
-                        "keywords": proc["keywords"],
-                        "parameters": [param["name"] for param in proc["parameters"]],
-                        "short_description": proc.get("description") or "",
-                    }
-                )
-            for func_name, func in bucket["functions"].items():
-                funcs_payload.append(
-                    {
-                        "function": func_name,
-                        "schema": schema_name,
-                        "object_type": "function",
-                        "function_type": func.get("function_type"),
-                        "keywords": func["keywords"],
-                        "parameters": [param["name"] for param in func["parameters"]],
-                        "short_description": func.get("description") or "",
-                    }
-                )
+            # views removed; none are included
         return {
             "database_name": database_name,
             "extraction_date": self._utc_now(),
             "total_schemas": len(schemas),
             "total_tables": len(tables_payload),
-            "total_views": len(views_payload),
-            "total_procedures": len(procs_payload),
-            "total_functions": len(funcs_payload),
+            "total_views": 0,
             "schemas": [
                 {
                     "name": schema_name,
                     "table_count": len(bucket["tables"]),
-                    "view_count": len(bucket["views"]),
-                    "procedure_count": len(bucket["procedures"]),
-                    "function_count": len(bucket["functions"]),
+                    "view_count": 0,
                 }
                 for schema_name, bucket in schemas.items()
             ],
             "tables": tables_payload,
-            "views": views_payload,
-            "procedures": procs_payload,
-            "functions": funcs_payload,
+            # no view payload
             "relationship_summary": relationship_summary,
         }
 
@@ -574,6 +451,43 @@ class SchemaGraphBuilder:
 
     def _utc_now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
+
+    def _safe_str(self, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value)
+
+    # ------------------------------------------------------------------
+    # Sanitization helpers (ensure builder emits only primitives)
+    # ------------------------------------------------------------------
+    def _is_primitive(self, value: Any) -> bool:
+        return isinstance(value, (str, int, float, bool)) or value is None
+
+    def _sanitize_value(self, value: Any) -> Any:
+        """Recursively coerce values to YAML-safe primitives."""
+        if isinstance(value, str):
+            return str(value)
+
+        if isinstance(value, datetime):  # datetime -> iso string
+            return self._to_iso(value)
+
+        if self._is_primitive(value):
+            return value
+
+        if isinstance(value, dict):
+            out: Dict[str, Any] = {}
+            for key, entry in value.items():
+                out[str(key)] = self._sanitize_value(entry)
+            return out
+
+        if isinstance(value, (list, tuple, set)):
+            return [self._sanitize_value(entry) for entry in value]
+
+        logger.debug("Builder sanitizing unsupported type %s via str()", type(value).__name__)
+        try:
+            return str(value)
+        except Exception:  # noqa: BLE001
+            return repr(value)
 
 
 __all__ = ["SchemaGraphBuilder", "BuilderSettings"]

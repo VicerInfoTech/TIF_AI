@@ -37,4 +37,7 @@ dependencies = [
     "hf-xet>=1.2.0",
     "huggingface-hub[hf-xet]>=0.36.0",
     "einops>=0.8.1",
+    "langchain-openai>=1.0.3",
+    "langchain-deepseek>=1.0.1",
+    "langchain-anthropic>=1.1.0",
 ]

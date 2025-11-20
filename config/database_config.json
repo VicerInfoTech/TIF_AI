@@ -6,8 +6,7 @@
       "max_rows": 1000,
       "query_timeout": 30,
       "intro_template": "config/schemas/db_intro/medical_db_intro.txt",
-      "exclude_column_matches": false,
-      "alias_map_file": "config/aliases/medical_db_aliases.yaml"
+      "exclude_column_matches": false
     },
     "avamed_db": {
       "connection_string": "jdbc:sqlserver://172.16.0.241:1433;databaseName=AvaMed;user=avareadonly;password=Admin@2025;",
@@ -15,8 +14,7 @@
       "max_rows": 500,
       "query_timeout": 20,
       "intro_template": "config/schemas/db_intro/avamed_db_intro.txt",
-      "exclude_column_matches": true,
-      "alias_map_file": "config/aliases/avamed_db_aliases.yaml"
+      "exclude_column_matches": true
     }
   }
 }

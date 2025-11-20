@@ -5,7 +5,7 @@ from __future__ import annotations
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
 import yaml
 
@@ -30,18 +30,11 @@ class YamlSchemaWriter:
 
         for schema_name, bucket in artifacts.schemas.items():
             schema_dir = self.output_dir / schema_name
-            (schema_dir / "_views").mkdir(parents=True, exist_ok=True)
-            (schema_dir / "_procedures").mkdir(parents=True, exist_ok=True)
-            (schema_dir / "_functions").mkdir(parents=True, exist_ok=True)
+            # View YAML output removed; we export only table files
 
             for table_name, table_data in bucket["tables"].items():
                 self._dump_yaml(schema_dir / f"{table_name}.yaml", table_data)
-            for view_name, view_data in bucket["views"].items():
-                self._dump_yaml(schema_dir / "_views" / f"{view_name}.yaml", view_data)
-            for proc_name, proc_data in bucket["procedures"].items():
-                self._dump_yaml(schema_dir / "_procedures" / f"{proc_name}.yaml", proc_data)
-            for func_name, func_data in bucket["functions"].items():
-                self._dump_yaml(schema_dir / "_functions" / f"{func_name}.yaml", func_data)
+            # no view outputs
 
         self._dump_yaml(self.output_dir / "metadata.yaml", artifacts.metadata_summary)
         self._dump_yaml(self.output_dir / "schema_index.yaml", artifacts.schema_index)
@@ -66,9 +59,27 @@ class YamlSchemaWriter:
     def _dump_yaml(self, path: Path, payload: Dict[str, object]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = path.with_suffix(path.suffix + ".tmp")
+        sanitized = self._sanitize_for_yaml(payload)
         with tmp_path.open("w", encoding="utf-8") as handle:
-            yaml.safe_dump(payload, handle, sort_keys=False, allow_unicode=True, default_flow_style=False)
+            yaml.safe_dump(sanitized, handle, sort_keys=False, allow_unicode=True, default_flow_style=False)
         tmp_path.replace(path)
+
+    def _sanitize_for_yaml(self, payload: Dict[str, object]) -> Dict[str, object]:
+        def _sanitize(value: Any) -> Any:
+            if isinstance(value, str):
+                return str(value)
+            if isinstance(value, dict):
+                return {str(k): _sanitize(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_sanitize(item) for item in value]
+            if isinstance(value, tuple):
+                return [_sanitize(item) for item in value]
+            if isinstance(value, (str, int, float, bool)) or value is None:
+                return value
+            logger.debug("Sanitizing YAML value of unsupported type %s: %s", type(value), value)
+            return str(value)
+
+        return {str(k): _sanitize(v) for k, v in payload.items()}
 
 
 __all__ = ["YamlSchemaWriter"]

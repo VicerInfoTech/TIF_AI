@@ -34,6 +34,9 @@ class SchemaExtractionPipeline:
 
     def run(self) -> Path:
         logger.info("Starting schema extraction pipeline. Output => %s", self.output_dir)
+        # TODO: Introduce db_type-aware extraction so we can route to the right extractor implementation.
+        # TODO: Add an `include_views` flag / BuilderSettings to optionally include view
+        # metadata if you want derived objects; for now we strip views for simplicity.
         extractor = SQLServerMetadataExtractor(
             self.connection_string,
             include_schemas=self.include_schemas,

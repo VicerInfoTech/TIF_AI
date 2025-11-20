@@ -8,7 +8,7 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core import database_manager
+from db import database_manager
 
 
 def execute_query(sql: str, db_config: Dict[str, object]) -> Dict[str, object]:

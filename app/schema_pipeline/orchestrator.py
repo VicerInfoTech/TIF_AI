@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Optional
 
-from app.config import PROJECT_ROOT, get_database_settings
+from app.user_db_config_loader import PROJECT_ROOT, get_user_database_settings
 from app.schema_pipeline import SchemaExtractionPipeline
 from app.schema_pipeline.embedding_pipeline import SchemaEmbeddingPipeline
 from app.models import SchemaEmbeddingResult, SchemaEmbeddingSettings
@@ -29,28 +29,27 @@ class SchemaPipelineOrchestrator:
         *,
         include_schemas: Iterable[str] | None = None,
         exclude_schemas: Iterable[str] | None = None,
-        collection_name: str | None = None,
-        chunk_size: int = 2000,
-        chunk_overlap: int = 100,
         embedding_mode: str = "structured",
         run_documentation: bool = True,
         run_embeddings: bool = True,
-        vector_connection_string: Optional[str] = None,
     ) -> None:
+        from db.database_manager import get_engine
         self.db_flag = db_flag
         self.include_schemas = include_schemas
         self.exclude_schemas = exclude_schemas
-        # Default collection_name to f"{db_flag}_docs" if not provided
-        self.collection_name = collection_name if collection_name is not None else f"{db_flag}_docs"
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
+        self.collection_name = f"{db_flag}_docs"
+        self.chunk_size = 2000
+        self.chunk_overlap = 100
         self.embedding_mode = embedding_mode
         self.run_documentation = run_documentation
         self.run_embeddings = run_embeddings
-        self.vector_connection_string = vector_connection_string
-
-        self.settings = get_database_settings(db_flag)
+        self.settings = get_user_database_settings(db_flag)
         self.extraction_output = PROJECT_ROOT / "config" / "schemas" / db_flag
+        # Get the Postgres connection string from a central place (not user input)
+        # This assumes you have a way to get the project-level Postgres connection string
+        # For example, from an environment variable or a config file
+        import os
+        self.vector_connection_string = os.environ.get("POSTGRES_CONNECTION_STRING")
 
     def run(self) -> SchemaPipelineResult:
         logger.info("Starting schema pipeline for %s", self.db_flag)
@@ -95,7 +94,7 @@ class SchemaPipelineOrchestrator:
     def _run_embeddings(self) -> SchemaEmbeddingResult:
         connection = self.vector_connection_string
         if not connection:
-            raise ValueError("Vector store connection string is required to embed schemas")
+            raise ValueError("POSTGRES_CONNECTION_STRING environment variable is required to embed schemas")
 
         settings = SchemaEmbeddingSettings(
             schema_root=SchemaEmbeddingPipeline.DEFAULT_SCHEMA_ROOT,

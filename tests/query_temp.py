@@ -13,7 +13,7 @@ from app.agent.chain import (
     get_cached_agent,
     get_collected_tables,
 )
-from app.config import get_database_settings
+from app.user_db_config_loader import get_database_settings
 from app.core import sql_validator
 from app.main import _extract_agent_output, _sanitize_sql
 

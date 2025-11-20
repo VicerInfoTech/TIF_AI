@@ -40,18 +40,32 @@ OPERATIONAL RULES & FLOW (mandatory)
 4. **Only after confirming columns/relationships** from retrieval tools, generate the final SQL. Never invent column names or joins not supported by retrieved context.
 5. **If a needed column or relationship cannot be confirmed**, return a safe SQL *template* with clearly-named placeholders (e.g., <CONFIRM_COLUMN_X>) and list which placeholders must be confirmed. Prefer templates over hallucinated queries.
 6. **SQL dialect:** produce valid **SQL Server (T-SQL)**. Use parameter placeholders (@param) for user-supplied values where appropriate. Use table aliases and explicit joins. Keep queries readable and efficient.
-7. **Always provide** the final SQL query only. Do not include narration, backticks, or markdown fences in the final output.
+7. **Finalization**: Do not emit free-form text. Provide the answer ONLY via a structured tool call (`LLMResponse`). No markdown fences.
 8. **If the question is ambiguous about intent**, fetch summaries for each candidate and choose the best answer while highlighting viable alternatives with placeholders if needed.
 9. **Always base answers strictly on retrieved context and the database knowledge above.** If the tools return conflicting info, prefer columns + relationships and re-query if needed.
-10. **For every user query, always return the corresponding SQL** (plus note any placeholders/assumptions inline as SQL comments if required). Keep answers concise and factual.
+10. **Unconfirmed details**: If any column or relationship cannot be verified, produce a parameterized SQL template with `<PLACEHOLDER_...>` markers and include a follow-up question requesting clarification.
 
 Database flag: {db_flag}
 
 Current time: {current_time}
 
-Final response requirements:
-- Output only the SQL statement (starting with SELECT) with no surrounding commentary or markdown fences.
-- Ensure the SQL references only confirmed tables/columns.
+Final structured response requirements (STRICT):
+1. End with a single `LLMResponse` tool invocation.
+2. Arguments:
+	 - `sql_query`: Final SELECT (or template with placeholders) referencing only confirmed or clearly marked placeholder columns.
+	 - `follow_up_questions`: 0-5 concise, distinct clarification or extension questions. Empty list if none.
+3. No narration or text outside the tool call arguments.
+4. Do NOT wrap SQL in backticks or markdown.
+Example tool call arguments (JSON form for illustration):
+{{
+	"sql_query": "SELECT pm.ProductName, SUM(dpd.QuantityToDispense) AS TotalQty FROM DispenseProductDetail dpd JOIN ProductMaster pm ON dpd.MasterProductId=pm.MasterProductId WHERE YEAR(d.DispenseDate)=2025 AND MONTH(d.DispenseDate)=10 GROUP BY pm.ProductName ORDER BY TotalQty DESC",
+	"follow_up_questions": ["Break down by company?", "Include revenue per product?", "Compare with prior month?"]
+}}
+If placeholders needed:
+{{
+	"sql_query": "SELECT <CONFIRM_PRODUCT_COLUMN>, SUM(<CONFIRM_QTY_COLUMN>) FROM <CONFIRM_ORDER_TABLE> WHERE ...",
+	"follow_up_questions": ["Please confirm the quantity column name."]
+}}
 """,
 	input_variables=["db_flag", "current_time"]
 )
@@ -67,7 +81,7 @@ The following describe output was produced by pandas' `describe(include='all')`:
 Here are a few example rows (JSON):
 {raw_json}
 
-Provide a concise natural-language summary (2–3 sentences) that calls out the most interesting metrics, counts, or anomalies you can infer from the describe statistics and rows.
+Provide a concise natural-language summary (2-3 sentences) that calls out the most interesting metrics, counts, or anomalies you can infer from the describe statistics and rows.
 """,
 	input_variables=["describe_text", "raw_json"],
 )
