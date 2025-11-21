@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SQL Insight — Dev Chat</title>
+  <link rel="stylesheet" href="/static/chat.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>SQL Insight — Dev Chat UI</h1>
+      <p class="muted">Dev-only. Posts queries to <code>POST /query</code> on this server.</p>
+    </header>
+
+    <section class="controls">
+      <label>DB Flag: <input id="db_flag" placeholder="avamed_db" value="avamed_db"/></label>
+      <label>User ID: <input id="user_id" placeholder="(optional) user id"/></label>
+      <label>Session ID: <input id="session_id" placeholder="(optional) session id"/></label>
+      <button id="clear_history">Clear Local History</button>
+    </section>
+
+    <section class="chat-area">
+      <div id="chat_window" class="chat-window"></div>
+
+      <form id="queryForm" class="query-form">
+        <input id="nlquery" type="text" placeholder="Ask a question about your DB (e.g. How many companies?)" required />
+        <select id="format">
+          <option value="json">JSON</option>
+          <option value="csv">CSV</option>
+          <option value="table">Table</option>
+        </select>
+        <button type="submit">Send</button>
+      </form>
+    </section>
+
+    <section id="result_section" class="results">
+      <h2>Last Result</h2>
+      <div id="result_meta" class="meta"></div>
+      <div id="result_viewer" class="result-viewer"></div>
+    </section>
+
+    <section id="history_section" class="history">
+      <h2>Recent Conversation (local)</h2>
+      <div id="local_history"></div>
+    </section>
+
+    <footer class="footer">Note: For dev/testing only — results may contain real data.</footer>
+  </div>
+
+  <script src="/static/chat.js"></script>
+</body>
+</html>

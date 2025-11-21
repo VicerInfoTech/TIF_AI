@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Literal, DefaultDict
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from dataclasses import dataclass, field
 
 
@@ -194,6 +194,14 @@ class QueryRequest(BaseModel):
         description="Output format: json, csv, or table",
         pattern="^(json|csv|table)$",
     )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="User identifier for conversation tracking (optional)",
+    )
+    session_id: Optional[str] = Field(
+        default=None,
+        description="Session identifier for conversation context (optional)",
+    )
 
 
 class ExecutionMetadata(BaseModel):
@@ -202,6 +210,13 @@ class ExecutionMetadata(BaseModel):
     execution_time_ms: Optional[float] = Field(None, description="Execution time in milliseconds")
     total_rows: Optional[int] = Field(None, description="Total rows returned")
     retry_count: int = Field(0, description="Number of retries performed")
+    
+    @field_validator('execution_time_ms', mode='before')
+    def round_value(cls, v: any, info: ValidationInfo) -> float:
+        if isinstance(v, (float, int)):
+            return round(v, 2)
+        return v
+
 
 
 class QueryResultData(BaseModel):

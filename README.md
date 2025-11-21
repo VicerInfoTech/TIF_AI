@@ -120,6 +120,16 @@ API will be available at: http://127.0.0.1:8000
 ```
 - Runs extraction, documentation, and embedding in one call.
 
+## Dev Chat UI (temporary)
+
+This repository includes a developer-facing chat UI for manual testing. It is intentionally lightweight and meant for local/dev use only.
+
+- Open the UI in your browser after starting the server:
+  - http://127.0.0.1:8000/chat
+  - or http://127.0.0.1:8000/static/chat.html
+- The UI sends requests to `POST /query` and displays the agent SQL plus results (CSV/JSON). It also allows entering `user_id` and `session_id` to exercise persistent conversation memory.
+- WARNING: This UI is unauthenticated and meant for local dev only. Don't expose it in production without authentication & CORS restrictions.
+
 ---
 
 ## Schema Management

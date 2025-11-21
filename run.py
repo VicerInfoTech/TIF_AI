@@ -4,4 +4,5 @@ from app.main import app
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    # uvicorn.run("app.main:app", host="127.0.0.1", port=8000)
+    uvicorn.run("app.main:app", host="172.16.0.212", port=8000)

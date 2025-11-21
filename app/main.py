@@ -11,6 +11,8 @@ from time import perf_counter
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.models import (
@@ -30,7 +32,9 @@ from app.models import (
 from app.agent.chain import (
     agent_context,
     default_collection_name,
+    get_available_providers,
     get_cached_agent,
+    get_cached_agent_with_context,
     get_collected_tables,
     parse_structured_response,
     summarize_query_results,
@@ -49,6 +53,11 @@ from app.utils.logger import setup_logging
 from db.database_manager import get_session
 from db.model import DatabaseConfig
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from db.conversation_memory import (
+    store_query_context,
+    get_session_summary,
+    update_or_create_session_summary,
+)
 
 # Initialize logging
 logger = setup_logging(__name__)
@@ -59,6 +68,26 @@ app = FastAPI(
     description="Natural Language to SQL query agent powered by LangChain with provider fallback",
     version="1.0.0",
 )
+
+# Dev-only static UI (chat page)
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    # mount under /static so files are available -- dev convenience only
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+@app.get("/chat")
+async def chat_ui():
+    """Dev UI: serve a small chat HTML page for manual testing.
+
+    This route intentionally returns the static chat UI that posts to /query.
+    It should be considered a development convenience and not a production feature.
+    """
+    f = static_dir / "chat.html"
+    if f.exists():
+        return FileResponse(f)
+    # if static not present, redirect to OpenAPI docs as fallback
+    return RedirectResponse(url="/docs")
 
 # Configure CORS
 app.add_middleware(
@@ -71,26 +100,6 @@ app.add_middleware(
 
 
 # Models moved to `app.models` for reusability and readability
-
-_INTRO_CACHE: Dict[str, str] = {}
-
-
-def _load_db_intro(db_flag: str, intro_path: str | None, fallback: str | None = None) -> str:
-    """Load and cache the business introduction text for a database."""
-
-    cached = _INTRO_CACHE.get(db_flag)
-    if cached is not None:
-        return cached
-
-    intro_text = fallback or ""
-    if intro_path:
-        try:
-            intro_text = Path(intro_path).read_text(encoding="utf-8").strip()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to read intro template for %s: %s", db_flag, exc)
-    _INTRO_CACHE[db_flag] = intro_text
-    return intro_text
-
 
 def _sanitize_sql(sql_text: str) -> str:
     """Remove formatting fences and whitespace from the agent's SQL output."""
@@ -179,6 +188,11 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             request.db_flag,
             request.output_format,
         )
+        logger.debug(
+            "Conversation identifiers user_id=%s session_id=%s",
+            request.user_id,
+            request.session_id,
+        )
 
         try:
             db_settings = get_user_database_settings(request.db_flag)
@@ -188,52 +202,44 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unknown database: {str(exc)}",
             ) from exc
+        
         db_config = db_settings.model_dump()
-        db_intro = _load_db_intro(
-            request.db_flag,
-            db_settings.intro_template,
-            fallback=db_settings.description,
-        )
         collection_name = default_collection_name(request.db_flag)
 
-        # If you want to auto-select provider by API key, use get_llm(None) logic
-        providers = []
-        selected_provider = None
-        try:
-            # Try to auto-select provider by key
-            llm = get_cached_agent.__wrapped__.__globals__["get_llm"](None)
-            # Find which provider was selected by inspecting llm class or env
-            # This is a best-effort guess; you may want to improve this logic
-            if hasattr(llm, "model_name"):
-                model_name = getattr(llm, "model_name", "").lower()
-                if "openai" in model_name:
-                    selected_provider = "openai"
-                elif "openrouter" in model_name or "kat-coder" in model_name:
-                    selected_provider = "openrouter"
-                elif "deepseek" in model_name:
-                    selected_provider = "deepseek"
-                elif "llama" in model_name or "groq" in model_name:
-                    selected_provider = "groq"
-                elif "claude" in model_name or "anthropic" in model_name:
-                    selected_provider = "anthropic"
-                elif "gemini" in model_name:
-                    selected_provider = "gemini"
-            if not selected_provider:
-                selected_provider = "openai"  # fallback
-            providers = [selected_provider]
-        except Exception as exc:
-            logger.warning(f"Provider auto-selection failed: {exc}")
-            providers = ["openai"]
+        providers = get_available_providers()
+        if not providers:
+            providers = ["gemini"]
+        logger.debug("Provider order determined by environment: %s", providers)
+        
         agent_output: Dict[str, Any] | None = None
         selected_tables: List[str] = []
         last_error: Exception | None = None
         successful_provider: str | None = None
         follow_up_questions: List[str] | None = None
 
+        # Use context-aware agent if user_id and session_id are provided
         for provider in providers:
-            agent = get_cached_agent(provider, request.db_flag)
             try:
-                with agent_context(request.db_flag, collection_name):
+                if request.user_id and request.session_id:
+                    # Use conversation-aware agent
+                    agent = get_cached_agent_with_context(
+                        provider,
+                        request.db_flag,
+                        user_id=request.user_id,
+                        session_id=request.session_id,
+                    )
+                    logger.debug(f"Using context-aware agent for user={request.user_id}, session={request.session_id}")
+                else:
+                    # Use stateless agent (backward compatible)
+                    agent = get_cached_agent(provider, request.db_flag)
+                    logger.debug("Using stateless agent (no user/session context)")
+
+                with agent_context(
+                    request.db_flag,
+                    collection_name,
+                    user_id=request.user_id,
+                    session_id=request.session_id,
+                ):
                     agent_output = agent.invoke(
                         {
                             "messages": [
@@ -262,8 +268,10 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             )
 
         structured_llm_response = parse_structured_response(agent_output)
+        contextual_insights: str | None = None
         if structured_llm_response:
             raw_output = structured_llm_response.sql_query
+            contextual_insights = structured_llm_response.query_context
             # Preserve empty list (do not coerce to None) for API clients that expect an array
             follow_up_questions = structured_llm_response.follow_up_questions
         else:
@@ -373,11 +381,53 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             raw_json = result_data.get("raw_json", "")
             natural_summary = summarize_query_results(successful_provider, describe_text, raw_json)
 
+        # Store query context in conversation history if user_id and session_id provided
+        if request.user_id and request.session_id:
+            try:
+                store_query_context(
+                    user_id=request.user_id,
+                    session_id=request.session_id,
+                    db_flag=request.db_flag,
+                    query_text=request.query,
+                    sql_generated=sql_generated,
+                    tables_used=selected_tables or [],
+                    follow_up_questions=follow_up_questions or [],
+                    contextual_insights=contextual_insights,
+                    execution_time=elapsed_ms / 1000.0 if elapsed_ms else None,
+                )
+                # Update session summary with new context
+                update_or_create_session_summary(
+                    user_id=request.user_id,
+                    session_id=request.session_id,
+                    db_flag=request.db_flag,
+                )
+                session_summary = get_session_summary(
+                    user_id=request.user_id,
+                    session_id=request.session_id,
+                    db_flag=request.db_flag,
+                )
+                if session_summary:
+                    logger.debug(
+                        "Session summary updated for user=%s, session=%s: %s",
+                        request.user_id,
+                        request.session_id,
+                        session_summary.get("summary"),
+                    )
+                logger.debug(f"Stored query context for user={request.user_id}, session={request.session_id}")
+            except Exception as exc:
+                logger.warning(f"Failed to store conversation history: {exc}")
+        else:
+            logger.debug(
+                "Skipping conversation persistence (missing identifiers) user_id=%s session_id=%s",
+                request.user_id,
+                request.session_id,
+            )
+
         return QueryResponse(
             status="success",
             sql=sql_generated,
             validation_passed=True,
-            # data=formatted.get("data"),
+            data=formatted.get("data"),
             error=None,
             selected_tables=selected_tables or None,
             keyword_matches=None,
