@@ -16,3 +16,6 @@ config/prompts/medical_db_intro.txt
 config/database_config.json
 config/schemas/db_intro
 Temp/embedding_preview.txt
+
+Temp/
+tests/
