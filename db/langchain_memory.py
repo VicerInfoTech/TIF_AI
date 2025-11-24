@@ -18,7 +18,7 @@ logger = setup_logging(__name__)
 raw_uri = os.getenv("POSTGRES_CONNECTION_STRING")
 if raw_uri and "+psycopg" in raw_uri:
     normalized_uri = raw_uri.replace("+psycopg", "", 1)
-    logger.debug("Normalized Postgres URI for LangGraph (removed +psycopg): %s", normalized_uri)
+    logger.debug("Normalized Postgres URI for LangGraph (removed +psycopg): %s", normalized_uri[:30])
 else:
     normalized_uri = raw_uri
 POSTGRES_URI = normalized_uri

@@ -521,8 +521,8 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
             detail=f"DatabaseConfig check/insert failed: {err}",
         )
 
-    if db_row.schema_extracted:
-        logger.info("Schema already extracted for db_flag=%s", request.db_flag)
+    if db_row.schema_extracted and not request.incremental_documentation:
+        logger.info("Schema already extracted for db_flag=%s and incremental=False. Skipping.", request.db_flag)
         extraction_output = PROJECT_ROOT / "config" / "schemas" / request.db_flag
         extraction_summary = ExtractionStageSummary(
             status="success",
@@ -550,6 +550,9 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
             documentation=documentation_stage,
             embeddings=embeddings_stage,
         )
+    
+    if db_row.schema_extracted:
+        logger.info("Database %s already enrolled. Proceeding with update/refresh (incremental=True).", request.db_flag)
 
     # Now run the pipeline as before
     try:
@@ -558,6 +561,7 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
             include_schemas=request.include_schemas,
             exclude_schemas=request.exclude_schemas,
             run_documentation=request.run_documentation,
+            incremental_documentation=request.incremental_documentation,
             run_embeddings=request.run_embeddings,
         )
         outcome = orchestrator.run()

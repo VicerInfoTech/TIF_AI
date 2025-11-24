@@ -31,6 +31,7 @@ class SchemaPipelineOrchestrator:
         exclude_schemas: Iterable[str] | None = None,
         embedding_mode: str = "structured",
         run_documentation: bool = True,
+        incremental_documentation: bool = True,
         run_embeddings: bool = True,
     ) -> None:
         from db.database_manager import get_engine
@@ -42,6 +43,7 @@ class SchemaPipelineOrchestrator:
         self.chunk_overlap = 100
         self.embedding_mode = embedding_mode
         self.run_documentation = run_documentation
+        self.incremental_documentation = incremental_documentation
         self.run_embeddings = run_embeddings
         self.settings = get_user_database_settings(db_flag)
         self.extraction_output = PROJECT_ROOT / "config" / "schemas" / db_flag
@@ -88,6 +90,7 @@ class SchemaPipelineOrchestrator:
             database_name=self.db_flag,
             schema_output_dir=schema_dir,
             intro_template_path=intro_path,
+            incremental=self.incremental_documentation,
         )
         return summary
 

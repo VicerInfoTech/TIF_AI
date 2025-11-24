@@ -294,6 +294,7 @@ class SchemaPipelineRequest(BaseModel):
     include_schemas: Optional[List[str]] = Field(None, description="Optional schema whitelist")
     exclude_schemas: Optional[List[str]] = Field(None, description="Optional schema blacklist")
     run_documentation: bool = Field(True, description="Whether to run the documentation stage")
+    incremental_documentation: bool = Field(True, description="Skip tables that are already fully documented")
     run_embeddings: bool = Field(True, description="Whether to run the embedding stage")
 
 

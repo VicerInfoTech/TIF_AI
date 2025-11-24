@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Mapping, Tuple
 from app.models import ColumnDocumentation, TableDocumentation
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
-from langchain_groq import ChatGroq
+from app.agent.chain import get_llm
 import yaml
 from dotenv import load_dotenv
 import time
@@ -31,25 +31,15 @@ class SchemaDocumentingAgent:
 
     def __init__(
         self,
-        model: str = "llama-3.3-70b-versatile",
-        temperature: float = 0.2,
+        provider: str = None,
     ) -> None:
         """Initialize the schema documenting agent.
 
         Args:
-            model: Groq model to use for generation. Defaults to llama-3.3-70b-versatile
-                which provides good balance of speed and quality.
-            temperature: LLM temperature (0.2 for more consistent documentation).
-                Lower values produce more deterministic outputs.
+            provider: LLM provider to use (e.g. "groq", "openai"). If None, auto-selects.
         """
         
-        try :
-            from langchain_google_genai import ChatGoogleGenerativeAI
-            model = "gemini-2.5-flash"
-            self.llm: ChatGoogleGenerativeAI = ChatGoogleGenerativeAI(model=model, temperature=temperature)
-        except ImportError:
-            model = "llama-3.3-70b-versatile"
-            self.llm: ChatGroq = ChatGroq(model=model, temperature=temperature)
+        self.llm = get_llm(provider)
         self.prompt: ChatPromptTemplate = self._build_prompt()
         # Use with_structured_output for guaranteed schema compliance
         # This is the modern LangChain approach for structured generation
@@ -221,7 +211,8 @@ Rewrite the table description and return the updated narrative plus the column d
         self,
         schema_yaml_dir: Path,
         business_intro_path: Path,
-    ) -> None:
+        incremental: bool = True,
+    ) -> SchemaDocumentationSummary:
         """Process all table YAML files and add column documentation.
 
         This method reads existing schema YAML files, generates documentation for each
@@ -230,6 +221,7 @@ Rewrite the table description and return the updated narrative plus the column d
         Args:
             schema_yaml_dir: Directory containing schema YAML files (e.g. /avamed_db)
             business_intro_path: Path to business intro text file for context
+            incremental: If True, skip tables that are already fully documented.
 
         Raises:
             FileNotFoundError: If schema_yaml_dir doesn't exist
@@ -253,7 +245,10 @@ Rewrite the table description and return the updated narrative plus the column d
             business_intro_path,
         )
 
-        schema_index = self._load_schema_index(schema_yaml_dir)
+        schema_index_path = schema_yaml_dir / "schema_index.yaml"
+        schema_index_data = self._load_schema_index_data(schema_index_path)
+        schema_index_map = self._build_index_map(schema_index_data)
+        
         intro_snippet = self._intro_snippet(business_intro)
 
         # Find all table YAML files (exclude metadata files)
@@ -288,10 +283,15 @@ Rewrite the table description and return the updated narrative plus the column d
                     failed += 1
                     continue
 
+                if incremental and self._is_table_fully_documented(table_data):
+                    logger.info("Skipping already documented table: %s", yaml_file.name)
+                    successful += 1
+                    continue
+
                 table_name = table_data.get("table_name", yaml_file.stem)
                 schema_name = table_data.get("schema", "dbo")
                 table_description = self._table_description_from_index(
-                    schema_index,
+                    schema_index_map,
                     schema_name,
                     table_name,
                     table_data.get("description", ""),
@@ -359,6 +359,9 @@ Rewrite the table description and return the updated narrative plus the column d
                         sort_keys=False
                     )
 
+                # Update schema index with the new description
+                self._update_schema_index(schema_index_data, schema_name, table_name, rewritten_description)
+
                 logger.info("✅ Updated documentation in %s", yaml_file)
                 successful += 1
 
@@ -369,6 +372,9 @@ Rewrite the table description and return the updated narrative plus the column d
                 logger.error("Failed to process %s: %s", yaml_file, exc, exc_info=True)
                 failed += 1
                 continue
+        
+        # Save updated schema index
+        self._save_schema_index(schema_index_path, schema_index_data)
 
         # Summary logging
         logger.info(
@@ -384,27 +390,82 @@ Rewrite the table description and return the updated narrative plus the column d
             failed=failed,
         )
 
-    def _load_schema_index(self, schema_yaml_dir: Path) -> Mapping[Tuple[str, str], Dict[str, Any]]:
-        index_path = schema_yaml_dir / "schema_index.yaml"
+    def _load_schema_index_data(self, index_path: Path) -> Dict[str, Any]:
         if not index_path.exists():
             logger.warning("schema_index.yaml missing at %s", index_path)
             return {}
 
         try:
             with index_path.open("r", encoding="utf-8") as handle:
-                index_data = yaml.safe_load(handle) or {}
+                return yaml.safe_load(handle) or {}
         except Exception as exc:
             logger.error("Failed to load schema index: %s", exc)
             return {}
 
+    def _build_index_map(self, index_data: Dict[str, Any]) -> Mapping[Tuple[str, str], Dict[str, Any]]:
         table_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
         for table_entry in index_data.get("tables", []):
             schema = table_entry.get("schema", "").lower()
             table = table_entry.get("table", "").lower()
             if schema and table:
                 table_map[(schema, table)] = table_entry
-
         return table_map
+
+    def _update_schema_index(
+        self, 
+        index_data: Dict[str, Any], 
+        schema_name: str, 
+        table_name: str, 
+        description: str
+    ) -> None:
+        """Update the short_description in the in-memory index data."""
+        if not description:
+            return
+            
+        target_schema = schema_name.lower()
+        target_table = table_name.lower()
+        
+        # Ensure tables list exists
+        if "tables" not in index_data:
+            index_data["tables"] = []
+            
+        # Try to find existing entry
+        found = False
+        for entry in index_data["tables"]:
+            if entry.get("schema", "").lower() == target_schema and \
+               entry.get("table", "").lower() == target_table:
+                entry["short_description"] = description
+                found = True
+                break
+        
+        # If not found, could add it, but usually we only update existing entries
+        # to avoid messing up the structure if it's strictly managed.
+        # For now, we only update if found to be safe, or we could append.
+        # Let's append if not found, as that keeps it in sync.
+        if not found:
+            index_data["tables"].append({
+                "schema": schema_name,
+                "table": table_name,
+                "short_description": description
+            })
+
+    def _save_schema_index(self, index_path: Path, index_data: Dict[str, Any]) -> None:
+        """Write the updated schema index back to disk."""
+        if not index_data:
+            return
+            
+        try:
+            with index_path.open("w", encoding="utf-8") as handle:
+                yaml.dump(
+                    index_data,
+                    handle,
+                    default_flow_style=False,
+                    allow_unicode=True,
+                    sort_keys=False
+                )
+            logger.info("Updated schema_index.yaml with new descriptions")
+        except Exception as exc:
+            logger.error("Failed to save schema index: %s", exc)
 
     def _table_description_from_index(
         self,
@@ -440,13 +501,26 @@ Rewrite the table description and return the updated narrative plus the column d
             parts.append(f"Context: {intro_snippet}")
         return "\n".join(parts)
 
+    def _is_table_fully_documented(self, table_data: Dict[str, Any]) -> bool:
+        """Check if a table is already fully documented."""
+        # Check table-level keywords
+        if not table_data.get("keywords"):
+            return False
+        
+        # Check columns
+        for col in table_data.get("columns", []):
+            if not col.get("description") or not col.get("keywords"):
+                return False
+                
+        return True
+
 
 def document_database_schema(
     database_name: str,
     schema_output_dir: Path,
     intro_template_path: Path,
-    model: str = "llama-3.3-70b-versatile",
-    temperature: float = 0.2,
+    provider: str = None,
+    incremental: bool = True,
 ) -> SchemaDocumentationSummary:
     """Main entry point to document a database schema using LLM-generated descriptions.
 
@@ -457,8 +531,8 @@ def document_database_schema(
         database_name: Name of the database (e.g., "avamed_db"). Used for logging.
         schema_output_dir: Directory with generated schema YAML files to document
         intro_template_path: Path to business intro text file providing context
-        model: Groq model to use for generation. Defaults to llama-3.3-70b-versatile.
-        temperature: LLM temperature for generation. Lower = more consistent.
+        provider: LLM provider to use. Defaults to auto-selection via get_llm.
+        incremental: If True, skip tables that are already fully documented.
 
     Raises:
         FileNotFoundError: If schema_output_dir doesn't exist
@@ -469,19 +543,18 @@ def document_database_schema(
         ...     database_name="avamed_db",
         ...     schema_output_dir=Path("output/avamed_db"),
         ...     intro_template_path=Path("config/prompts/avamed_db_intro.txt"),
-        ...     model="llama-3.3-70b-versatile",
-        ...     temperature=0.2
+        ...     provider="groq"
         ... )
     """
     logger.info("Starting schema documentation for database: %s", database_name)
-    logger.info("Using model: %s with temperature: %.2f", model, temperature)
+    logger.info("Using provider: %s", provider or "auto-select")
 
     try:
         # Initialize agent with specified configuration
-        agent = SchemaDocumentingAgent(model=model, temperature=temperature)
+        agent = SchemaDocumentingAgent(provider=provider)
 
         # Process all schema files
-        summary = agent.document_schema(schema_output_dir, intro_template_path)
+        summary = agent.document_schema(schema_output_dir, intro_template_path, incremental=incremental)
 
         logger.info("✅ Schema documentation complete for %s", database_name)
         return summary
