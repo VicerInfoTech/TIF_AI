@@ -207,8 +207,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         collection_name = default_collection_name(request.db_flag)
 
         providers = get_available_providers()
-        if not providers:
-            providers = ["gemini"]
+
         logger.debug("Provider order determined by environment: %s", providers)
         
         agent_output: Dict[str, Any] | None = None

@@ -65,7 +65,9 @@ def get_available_providers() -> list[str]:
 		if key_env is None or os.environ.get(key_env):
 			available.append(provider)
 	if not available:
+		logger.debug("No API-key-backed provider, falling back to Gemini")
 		return ["gemini"]
+	logger.debug("Available providers via env: %s", available)
 	return available
 
 
@@ -241,13 +243,17 @@ def create_sql_agent(llm: BaseChatModel, system_prompt: str) -> Any:
 		fetch_table_section_tool,
 		validate_sql_tool,
 	]
+	logger.debug(
+		"Creating SQL agent with tools=%s system_prompt_hash=%s",
+		[tool.name for tool in tools],
+		hash(system_prompt),
+	)
 	agent = create_agent(
 		model=llm,
 		tools=tools,
 		system_prompt=system_prompt,
 		response_format=ToolStrategy(LLMResponse),
- 		middleware=[debug_model_call, _postgres_checkpoint_middleware],
-		
+		middleware=[debug_model_call, _postgres_checkpoint_middleware],
 	)
 	logger.info("Created LangChain SQL agent using model %s", getattr(llm, "model_name", repr(llm)))
 	return agent
@@ -269,8 +275,19 @@ def _build_context_from_history(
 		query_history = get_query_history(user_id, session_id, db_flag, limit=3)
 		if not query_history:
 			return "", ""
+		logger.debug(
+			"Loaded %d history entries for %s/%s (db=%s)",
+			len(query_history),
+			user_id,
+			session_id,
+			db_flag,
+		)
 
 		conversation_summary = format_conversation_summary(query_history)
+		logger.debug(
+			"Conversation summary length=%d",
+			len(conversation_summary),
+		)
 		accessed_tables = {
 			table
 			for record in query_history
@@ -290,6 +307,10 @@ def _build_context_from_history(
 			previous_context_lines.append("Insights: " + " | ".join(insights))
 
 		previous_context = "\n".join(previous_context_lines)
+		logger.debug(
+			"Previous context entries=%d",
+			len(previous_context_lines),
+		)
 		return conversation_summary, previous_context
 	except Exception as exc:
 		logger.warning(f"Failed to build context from history: {exc}")

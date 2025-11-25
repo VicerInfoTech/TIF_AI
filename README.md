@@ -20,13 +20,17 @@ A LangGraph-based, agentic SQL query system for SQL Server and MySQL, with natur
 
 ## Quickstart
 
-### 1. Clone & Install
+### 1. Install `uv` (Windows)
+This project uses `uv` for dependency management. Install it via PowerShell:
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+### 2. Clone & Sync
 ```sh
 git clone <your-repo-url>
 cd sql-insight-agent
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 2. Environment Variables

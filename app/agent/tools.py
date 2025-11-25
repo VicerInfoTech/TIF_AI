@@ -52,6 +52,16 @@ def _require_collection() -> str:
 	return collection
 
 
+def _log_tool(name: str, params: Dict[str, object], result: str | None, extra: Dict[str, object] | None = None) -> None:
+	log_data = {
+		"params": params,
+		"result_length": len(result) if result else 0,
+	}
+	if extra:
+		log_data.update(extra)
+	logger.debug("Tool call: %s %s", name, log_data)
+
+
 @contextmanager
 def agent_context(
 	db_flag: str,
@@ -164,6 +174,13 @@ def search_tables_tool(query: str, k: int = 4) -> str:
 			f"Table: {table_name} (schema={db_schema})\nSummary: {doc.page_content.strip()}"
 		)
 	out = "\n\n".join(formatted)
+	_table_names = [doc.metadata.get("table_name") or doc.metadata.get("table") for doc in docs]
+	_log_tool(
+		"search_tables",
+		{"query": query, "k": k, "filters": filters},
+		out,
+		{"hits": len(docs), "tables": _table_names},
+	)
 	return _tool_maybe_cache_or_count("search_tables", cache_key, out)
 
 
@@ -183,6 +200,12 @@ def fetch_table_summary_tool(table_name: str, db_schema: str | None = None) -> s
 		return f"No summary found for table {table_name}."
 	_record_table(table_name)
 	out = docs[0].page_content.strip()
+	_log_tool(
+		"fetch_table_summary",
+		{"table_name": table_name, "db_schema": db_schema, "filters": filters},
+		out,
+		{"hits": len(docs)},
+	)
 	return _tool_maybe_cache_or_count("fetch_table_summary", cache_key, out)
 
 
@@ -204,6 +227,12 @@ def fetch_table_section_tool(table_name: str, section: str, db_schema: str | Non
 		return f"No {section} section found for table {table_name}."
 	_record_table(table_name)
 	out = docs[0].page_content.strip()
+	_log_tool(
+		"fetch_table_section",
+		{"table_name": table_name, "section": section, "filters": filters},
+		out,
+		{"hits": len(docs)},
+	)
 	return _tool_maybe_cache_or_count("fetch_table_section", cache_key, out)
 
 
@@ -213,6 +242,12 @@ def validate_sql_tool(sql: str) -> str:
 
 	# We still validate each SQL call (not cached) because it depends on the SQL text
 	result = sql_validator.validate_sql(sql or "")
+	_log_tool(
+		"validate_sql",
+		{"sql": sql},
+		"OK" if result.get("valid") else f"Invalid: {result.get('reason')}",
+		{"valid": result.get("valid"), "reason": result.get("reason")},
+	)
 	return "OK" if result.get("valid") else f"Invalid: {result.get('reason')}"
 
 
