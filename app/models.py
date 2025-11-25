@@ -326,6 +326,18 @@ class SchemaPipelineResponse(BaseModel):
     extraction: ExtractionStageSummary
     documentation: DocumentationStageSummary
     embeddings: EmbeddingStageSummary
+    report: SchemaPipelineReport
+
+
+@dataclass(frozen=True)
+class SchemaPipelineReport:
+    extracted_files: int
+    documentation_tables_total: int
+    documentation_documented: int
+    documentation_failed: int
+    documentation_skipped: int
+    embeddings_minimal_files: int
+    embeddings_document_chunks: int
 
 
 @dataclass(frozen=True)

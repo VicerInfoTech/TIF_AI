@@ -134,35 +134,98 @@ Rewrite the table description and return the updated narrative plus the column d
             return {}, table_description
 
         # Prepare column summary for LLM with relevant metadata
-        columns_json = json.dumps(
-            [
-                {
-                    "name": col["name"],
-                    "type": col.get("sql_type", col.get("type", "unknown")),
-                    "is_nullable": col.get("is_nullable", True),
-                    "is_identity": col.get("is_identity", False),
-                }
-                for col in columns
-            ],
-            indent=2,
+        columns_json = self._build_columns_payload(columns)
+
+        # Trim very large prompt components to stay well within practical limits.
+        trimmed_intro, intro_trimmed = self._truncate_text(
+            business_intro or "",
+            max_chars=6000,
+            label="business_intro",
+            table_identifier=f"{schema_name}.{table_name}",
+        )
+        base_description = table_description or "No description available"
+        trimmed_description, desc_trimmed = self._truncate_text(
+            base_description,
+            max_chars=2500,
+            label="table_description",
+            table_identifier=f"{schema_name}.{table_name}",
         )
 
+        # Build prompt variables early so token-counting and other diagnostics can inspect them
+        prompt_vars = {
+            "business_intro": trimmed_intro,
+            "table_name": table_name,
+            "schema_name": schema_name,
+            "table_description": trimmed_description,
+            "columns_json": columns_json,
+        }
+
+        logger.debug(
+            "LLM prompt snapshot for %s.%s -> intro_chars=%d (trimmed=%s), table_desc_chars=%d (trimmed=%s), columns=%d",
+            schema_name,
+            table_name,
+            len(trimmed_intro),
+            intro_trimmed,
+            len(trimmed_description),
+            desc_trimmed,
+            len(columns),
+        )
+        logger.debug("Column payload preview: %s", columns_json[:400])
+
+        # Try to detect the model and a reasonable context limit for warnings
+        model_name = getattr(self.llm, "model_name", None) or getattr(self.llm, "model", None) or str(self.llm)
+        model_name = str(model_name)
         attempt = 0
         delay = initial_delay
+        # Compute token counts and compare against detected/estimated context window
+        try:
+            import tiktoken
+            enc = None
+            try:
+                enc = tiktoken.encoding_for_model(model_name)
+            except Exception:
+                # Fallback to cl100k_base if specific model encoding unknown
+                enc = tiktoken.get_encoding("cl100k_base")
+
+            lengths = {k: len(enc.encode(str(v))) for k, v in prompt_vars.items()}
+            token_count = sum(lengths.values())
+            logger.debug("Prompt token lengths: %s", lengths)
+            logger.debug("Total prompt token count: %d", token_count)
+
+            # Try to detect a context limit value on the LLM object (if exposed by provider)
+            context_limit = None
+            for attr in ("context_window", "context_length", "max_context", "max_tokens", "context_size"):
+                value = getattr(self.llm, attr, None)
+                if value:
+                    context_limit = value
+                    break
+
+            if context_limit:
+                try:
+                    cl = int(context_limit)
+                    logger.debug("Model '%s' reported context limit: %d tokens", model_name, cl)
+                    if token_count > cl:
+                        logger.warning(
+                            "Prompt token count (%d) exceeds reported context limit (%d) for model '%s' — this may cause truncation or function-call failures",
+                            token_count,
+                            cl,
+                            model_name,
+                        )
+                except Exception:
+                    logger.debug("Non-integer context_limit=%s for model %s", context_limit, model_name)
+            else:
+                logger.debug("Model '%s' did not report a context window; skipping limit comparison", model_name)
+        except Exception as e:
+            logger.debug("Token counting / context detection failed: %s", e)
+
+        prompt_state = dict(prompt_vars)
+        fallback_applied = False
+
         while attempt <= max_retries:
             try:
                 # logger.debug(f"Invoking LLM for table {schema_name}.{table_name} documentation with table description: {table_description}")
                 # Invoke the chain - structured output ensures type safety
-                result: TableDocumentation = self.chain.invoke(
-                    {
-                        "business_intro": business_intro,
-                        "table_name": table_name,
-                        "schema_name": schema_name,
-                        "table_description": table_description
-                        or "No description available",
-                        "columns_json": columns_json,
-                    }
-                )
+                result: TableDocumentation = self.chain.invoke(prompt_state)
 
                 # Convert list to dict for efficient lookup
                 doc_map = {doc.column_name: doc for doc in result.columns}
@@ -188,20 +251,86 @@ Rewrite the table description and return the updated narrative plus the column d
                 return doc_map, result.table_description.strip()
 
             except Exception as exc:
+                attempt += 1
+                # Extra debug: capture function/tool calling errors and tool_use_failed patterns
+                exc_str = str(exc).lower()
+                extra_info = {}
+                # Attempt to extract structured details from common exception shapes
+                for attr in ("status_code", "code", "errors", "response", "raw_response", "body", "args"):
+                    try:
+                        val = getattr(exc, attr, None)
+                        if val is not None:
+                            extra_info[attr] = val
+                    except Exception:
+                        # ignore attribute access errors
+                        pass
+
+                if extra_info:
+                    logger.debug("Exception extra metadata: %s", extra_info)
+
+                # If the provider returned a 'failed_generation' body from Groq/OpenAI-style responses,
+                # surface it so we can inspect the attempted function/tool call that failed.
+                try:
+                    body = extra_info.get("body") or extra_info.get("response")
+                    # 'body' may be an HTTP response object with .json() available
+                    if hasattr(body, "json"):
+                        parsed = body.json()
+                        fg = parsed.get("error", {}).get("failed_generation") if isinstance(parsed, dict) else None
+                        if fg:
+                            logger.debug("failed_generation payload from API: %s", fg)
+                    elif isinstance(body, dict):
+                        fg = body.get("error", {}).get("failed_generation")
+                        if fg:
+                            logger.debug("failed_generation payload from API: %s", fg)
+                except Exception:
+                    # Best-effort; do not fail the whole flow when reading response body
+                    logger.debug("Could not parse failed_generation payload from exception metadata")
+
+                if "tool_use_failed" in exc_str or "function" in exc_str or "function calling" in exc_str:
+                    logger.error(
+                        "Function/tool calling error during documentation of %s.%s: %s",
+                        schema_name,
+                        table_name,
+                        exc,
+                        exc_info=True,
+                    )
+                else:
+                    logger.error(
+                        "Failed to document table %s.%s: %s",
+                        schema_name,
+                        table_name,
+                        exc,
+                        exc_info=True,
+                    )
                 # Check for rate limit error (429)
                 if hasattr(exc, "status_code") and getattr(exc, "status_code", None) == 429 or "rate limit" in str(exc).lower():
-                    attempt += 1
                     logger.warning(f"Rate limit hit (429) for {table_name}. Sleeping {delay:.1f}s before retry {attempt}/{max_retries}...")
                     time.sleep(delay)
                     delay *= 2  # Exponential backoff
                     continue
-                logger.error(
-                    "Failed to document table %s.%s: %s",
-                    schema_name,
-                    table_name,
-                    exc,
-                    exc_info=True,
-                )
+
+                is_tool_failure = "tool_use_failed" in exc_str or "function" in exc_str or "function calling" in exc_str
+
+                if is_tool_failure and attempt <= max_retries:
+                    if not fallback_applied:
+                        fallback_applied = True
+                        prompt_state = self._apply_compact_prompt(prompt_vars, columns)
+                        logger.warning(
+                            "Tool call failed for %s.%s — retrying with compact prompt (attempt %d/%d)",
+                            schema_name,
+                            table_name,
+                            attempt,
+                            max_retries,
+                        )
+                        time.sleep(2)
+                        continue
+                    else:
+                        logger.warning(
+                            "Tool call failed again for %s.%s even after compact prompt.",
+                            schema_name,
+                            table_name,
+                        )
+
                 # Return empty dict as fallback to allow pipeline to continue
                 return {}, table_description
         logger.error(f"Max retries exceeded for {table_name}.{schema_name} due to rate limits.")
@@ -362,7 +491,7 @@ Rewrite the table description and return the updated narrative plus the column d
                 # Update schema index with the new description
                 self._update_schema_index(schema_index_data, schema_name, table_name, rewritten_description)
 
-                logger.info("✅ Updated documentation in %s", yaml_file)
+                logger.info("Updated documentation in %s", yaml_file)
                 successful += 1
 
                 # Throttle to avoid rate limits
@@ -514,6 +643,74 @@ Rewrite the table description and return the updated narrative plus the column d
                 
         return True
 
+    def _build_columns_payload(self, columns: List[Dict[str, Any]]) -> str:
+        payload = [
+            {
+                "name": col["name"],
+                "type": col.get("sql_type", col.get("type", "unknown")),
+                "is_nullable": col.get("is_nullable", True),
+                "is_identity": col.get("is_identity", False),
+            }
+            for col in columns
+        ]
+        return json.dumps(payload, indent=2)
+
+    def _truncate_text(
+        self,
+        text: str,
+        max_chars: int,
+        label: str,
+        table_identifier: str,
+    ) -> Tuple[str, bool]:
+        if not text:
+            return "", False
+        if len(text) <= max_chars:
+            return text, False
+        truncated = text[:max_chars]
+        # Prefer to cut on a whitespace boundary to avoid mid-word breaks when possible
+        if " " in truncated:
+            truncated = truncated.rsplit(" ", 1)[0]
+        truncated = truncated.strip()
+        logger.debug(
+            "Truncated %s for %s from %d to %d characters",
+            label,
+            table_identifier,
+            len(text),
+            len(truncated),
+        )
+        return truncated, True
+
+    def _apply_compact_prompt(
+        self,
+        original_prompt: Dict[str, str],
+        columns: List[Dict[str, Any]],
+    ) -> Dict[str, str]:
+        compact_prompt = dict(original_prompt)
+        table_identifier = f"{original_prompt.get('schema_name', '')}.{original_prompt.get('table_name', '')}"
+        compact_prompt["business_intro"] = ""
+        compact_desc, _ = self._truncate_text(
+            compact_prompt.get("table_description", ""),
+            max_chars=1200,
+            label="table_description_compact",
+            table_identifier=table_identifier,
+        )
+        compact_prompt["table_description"] = compact_desc
+        compact_columns = [
+            {
+                "name": col["name"],
+                "type": col.get("sql_type", col.get("type", "unknown")),
+            }
+            for col in columns
+        ]
+        compact_prompt["columns_json"] = json.dumps(compact_columns, indent=2)
+        logger.debug(
+            "Applied compact prompt for %s: intro dropped, description %d chars, %d column summaries",
+            table_identifier,
+            len(compact_desc),
+            len(compact_columns),
+        )
+        return compact_prompt
+
 
 def document_database_schema(
     database_name: str,
@@ -556,7 +753,7 @@ def document_database_schema(
         # Process all schema files
         summary = agent.document_schema(schema_output_dir, intro_template_path, incremental=incremental)
 
-        logger.info("✅ Schema documentation complete for %s", database_name)
+        logger.info("Schema documentation complete for %s", database_name)
         return summary
 
     except Exception as exc:

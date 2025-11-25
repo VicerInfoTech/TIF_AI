@@ -24,6 +24,7 @@ from app.models import (
     SchemaEmbeddingResponse,
     SchemaPipelineRequest,
     SchemaPipelineResponse,
+    SchemaPipelineReport,
     ExtractionStageSummary,
     DocumentationStageSummary,
     EmbeddingStageSummary,
@@ -543,11 +544,13 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
             output_directory=str(SchemaEmbeddingPipeline.DEFAULT_OUTPUT_ROOT / request.db_flag),
             message="Embedding skipped because schema already exists",
         )
+        report = _build_pipeline_report(extraction_summary, documentation_stage, embeddings_stage)
         return SchemaPipelineResponse(
             db_flag=request.db_flag,
             extraction=extraction_summary,
             documentation=documentation_stage,
             embeddings=embeddings_stage,
+            report=report,
         )
     
     if db_row.schema_extracted:
@@ -631,11 +634,13 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
 
             _mark_schema_extracted(request.db_flag)
 
+        report = _build_pipeline_report(extraction_summary, documentation_stage, embeddings_stage)
         return SchemaPipelineResponse(
             db_flag=request.db_flag,
             extraction=extraction_summary,
             documentation=documentation_stage,
             embeddings=embeddings_stage,
+            report=report,
         )
     except HTTPException:
         raise
@@ -691,6 +696,26 @@ def _mark_schema_extracted(db_flag: str) -> None:
         session.commit()
     finally:
         session.close()
+
+
+def _build_pipeline_report(
+    extraction_summary: ExtractionStageSummary,
+    documentation_stage: DocumentationStageSummary,
+    embeddings_stage: EmbeddingStageSummary,
+) -> SchemaPipelineReport:
+    documentation_skipped = max(
+        0,
+        documentation_stage.tables_total - documentation_stage.documented - documentation_stage.failed,
+    )
+    return SchemaPipelineReport(
+        extracted_files=extraction_summary.tables_exported,
+        documentation_tables_total=documentation_stage.tables_total,
+        documentation_documented=documentation_stage.documented,
+        documentation_failed=documentation_stage.failed,
+        documentation_skipped=documentation_skipped,
+        embeddings_minimal_files=embeddings_stage.minimal_files,
+        embeddings_document_chunks=embeddings_stage.document_chunks,
+    )
 
 
 @app.get("/")
