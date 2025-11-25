@@ -46,7 +46,7 @@ class SchemaPipelineOrchestrator:
         self.incremental_documentation = incremental_documentation
         self.run_embeddings = run_embeddings
         self.settings = get_user_database_settings(db_flag)
-        self.extraction_output = PROJECT_ROOT / "config" / "schemas" / db_flag
+        self.extraction_output = PROJECT_ROOT / "database_schemas" / db_flag / "schema"
         # Get the Postgres connection string from a central place (not user input)
         # This assumes you have a way to get the project-level Postgres connection string
         # For example, from an environment variable or a config file

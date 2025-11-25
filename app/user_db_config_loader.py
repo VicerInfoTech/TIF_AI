@@ -39,9 +39,23 @@ def get_user_database_settings(db_flag: str) -> DatabaseSettings:
             available = [row.db_flag for row in session.query(DatabaseConfig.db_flag).all()]
             raise KeyError(f"Unknown database flag '{db_flag}'. Available: {available}")
         logger.info("Fetched user database settings for db_flag=%s from DatabaseConfig", db_flag)
+        intro_template = ""
+        if db_row.intro_template:
+            resolved = _resolve_path(db_row.intro_template)
+            if Path(resolved).exists():
+                intro_template = resolved
+            else:
+                fallback = PROJECT_ROOT / "database_schemas" / db_flag / "db_intro" / Path(db_row.intro_template).name
+                if fallback.exists():
+                    intro_template = str(fallback)
+        else:
+            default_path = PROJECT_ROOT / "database_schemas" / db_flag / "db_intro" / f"{db_flag}_intro.txt"
+            if default_path.exists():
+                intro_template = str(default_path)
+
         return DatabaseSettings(
             connection_string=os.path.expandvars(db_row.connection_string),
-            intro_template=_resolve_path(db_row.intro_template) if db_row.intro_template else "",
+            intro_template=intro_template,
             description=db_row.description,
             max_rows=db_row.max_rows,
             query_timeout=db_row.query_timeout,

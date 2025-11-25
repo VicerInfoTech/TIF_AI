@@ -523,7 +523,7 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
 
     if db_row.schema_extracted and not request.incremental_documentation:
         logger.info("Schema already extracted for db_flag=%s and incremental=False. Skipping.", request.db_flag)
-        extraction_output = PROJECT_ROOT / "config" / "schemas" / request.db_flag
+        extraction_output = PROJECT_ROOT / "database_schemas" / request.db_flag / "schema"
         extraction_summary = ExtractionStageSummary(
             status="success",
             output_directory=str(extraction_output),

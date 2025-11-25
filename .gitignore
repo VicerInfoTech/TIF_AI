@@ -5,17 +5,13 @@ __pycache__/
 *.pyc   
 .env
 Log/
-doc/
 *.log
 .pytest_cache
 
 
 *.yaml
-config/prompts/avamed_db_intro.txt
-config/prompts/medical_db_intro.txt
-config/database_config.json
-config/schemas/db_intro
-Temp/embedding_preview.txt
+database_schemas/
+doc/
 
 Temp/
 app/static/chat.js.backup

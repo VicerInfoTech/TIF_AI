@@ -23,7 +23,7 @@ from app.models import SchemaEmbeddingSettings, SchemaEmbeddingResult
 class SchemaEmbeddingPipeline:
     """Convert schema YAML definitions into embeddings stored in Postgres."""
 
-    DEFAULT_SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "config" / "schemas"
+    DEFAULT_SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "database_schemas"
     DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parents[2] / "temp_output" / "minimal"
 
     def __init__(
@@ -41,7 +41,7 @@ class SchemaEmbeddingPipeline:
             schema_root=self.DEFAULT_SCHEMA_ROOT,
             minimal_output_root=self.DEFAULT_OUTPUT_ROOT,
         )
-        self.target_dir = self.settings.schema_root / self.db_flag
+        self.target_dir = self.settings.schema_root / self.db_flag / "schema"
         if not self.target_dir.exists():
             raise FileNotFoundError(f"Schema directory not found: {self.target_dir}")
         self._embedding_client = HuggingFaceEmbeddings(

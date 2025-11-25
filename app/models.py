@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 class DatabaseSettings(BaseModel):
     """Configuration options for a single database target."""
     connection_string: str = Field(..., min_length=1)
-    # `ddl_file` was removed: schema artifacts are stored under config/schemas/<db_flag>
+    # `ddl_file` was removed: schema artifacts are stored under database_schemas/<db_flag>/schema
     intro_template: str = Field(..., description="Path to the business intro template file")
     description: Optional[str] = None
     max_rows: int = Field(1000, ge=1, description="Maximum rows the agent should fetch")
@@ -257,7 +257,11 @@ class QueryResponse(BaseModel):
 class SchemaEmbeddingRequest(BaseModel):
     """Request payload for the schema embedding generator."""
 
-    db_flag: str = Field(..., min_length=1, description="Target schema folder inside config/schemas")
+    db_flag: str = Field(
+        ...,
+        min_length=1,
+        description="Target database flag (artifacts live under database_schemas/<db_flag>/schema)",
+    )
     collection_name: str = Field(
         "avamed_db_docs",
         min_length=1,

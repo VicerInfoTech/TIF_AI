@@ -739,7 +739,7 @@ def document_database_schema(
         >>> document_database_schema(
         ...     database_name="avamed_db",
         ...     schema_output_dir=Path("output/avamed_db"),
-        ...     intro_template_path=Path("config/prompts/avamed_db_intro.txt"),
+        ...     intro_template_path=Path("database_schemas/avamed_db/db_intro/avamed_db_intro.txt"),
         ...     provider="groq"
         ... )
     """
