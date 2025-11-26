@@ -1,4 +1,4 @@
-# SQL Insight Agent - Complete Flow Diagram & Explanation
+# AQ Insight Agent - Complete Flow Diagram & Explanation
 
 ## 1. HIGH-LEVEL ARCHITECTURE FLOW
 

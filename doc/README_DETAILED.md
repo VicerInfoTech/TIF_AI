@@ -1,4 +1,4 @@
-# SQL Insight Agent - Complete Documentation
+# AQ Insight Agent - Complete Documentation
 
 A production-ready, LangGraph-based agentic SQL query system that transforms natural language into validated SQL queries. Built for SQL Server and MySQL databases with advanced features including schema intelligence, conversation memory, multi-LLM support, and vector-based semantic search.
 
@@ -25,7 +25,7 @@ A production-ready, LangGraph-based agentic SQL query system that transforms nat
 
 ## Overview
 
-SQL Insight Agent is an intelligent Natural Language to SQL (NL2SQL) system that enables non-technical users to query databases using plain English. The system leverages multiple LLM providers with automatic fallback, maintains conversation context, and uses vector embeddings for intelligent schema discovery.
+AQ Insight Agent is an intelligent Natural Language to SQL (NL2SQL) system that enables non-technical users to query databases using plain English. The system leverages multiple LLM providers with automatic fallback, maintains conversation context, and uses vector embeddings for intelligent schema discovery.
 
 ### What Makes It Special?
 
@@ -166,7 +166,7 @@ uv pip list
 
 ## Database Setup (PostgreSQL + PGVector)
 
-The SQL Insight Agent requires a PostgreSQL database with the PGVector extension for storing schema embeddings, conversation history, and agent checkpoints.
+The AQ Insight Agent requires a PostgreSQL database with the PGVector extension for storing schema embeddings, conversation history, and agent checkpoints.
 
 ### PostgreSQL Installation
 
@@ -231,7 +231,7 @@ psql -U postgres
 **Execute the following SQL commands:**
 
 ```sql
--- Create the database for SQL Insight Agent
+-- Create the database for AQ Insight Agent
 CREATE DATABASE sql_insight_agent;
 
 -- Connect to the new database
@@ -390,7 +390,7 @@ http://127.0.0.1:8000
 ```json
 {
   "status": "healthy",
-  "message": "SQL Insight Agent is running",
+  "message": "AQ Insight Agent is running",
   "version": "1.0.0"
 }
 ```
@@ -653,7 +653,7 @@ Content-Type: application/json
   - Type: `string`
   - Description: Database connection string
   - **⚠️ CRITICAL SECURITY REQUIREMENT**: You MUST provide a READ-ONLY database user in the connection string
-  - **Why**: The SQL Insight Agent only needs SELECT permissions. Using read-only credentials prevents any accidental or malicious data modifications
+  - **Why**: The AQ Insight Agent only needs SELECT permissions. Using read-only credentials prevents any accidental or malicious data modifications
   - **How to create read-only users**: See the "Security Configuration" section below for SQL Server, MySQL, and PostgreSQL examples
   - Formats:
     - **SQL Server**: `"DRIVER={ODBC Driver 17 for SQL Server};SERVER=host;DATABASE=dbname;UID=readonly_user;PWD=pass"`
@@ -896,7 +896,7 @@ Content-Type: application/json
 **Response:**
 ```json
 {
-  "message": "SQL Insight Agent API",
+  "message": "AQ Insight Agent API",
   "docs": "/docs",
   "health": "/health",
   "endpoints": {

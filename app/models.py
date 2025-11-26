@@ -1,4 +1,4 @@
-"""Application data models used across the SQL insight agent."""
+"""Application data models used across the AQ Insight agent."""
 
 from __future__ import annotations
 
@@ -282,7 +282,7 @@ class HealthResponse(BaseModel):
     """Health check response."""
 
     status: str = Field("healthy")
-    message: str = Field("SQL Insight Agent is running")
+    message: str = Field("AQ Insight Agent is running")
     version: str = Field("1.0.0")
 
 

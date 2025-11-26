@@ -187,11 +187,12 @@
         agentText += `<div style="margin-bottom:1rem; padding:0.75rem; background:rgba(59, 130, 246, 0.1); border-left:3px solid var(--primary-color); border-radius:0.375rem;">${escapeHtml(json.natural_summary)}</div>`;
       }
 
-      if (sql) {
-        agentText += `<div style="margin-bottom:0.5rem; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Generated SQL</div><pre><code>${escapeHtml(sql)}</code></pre>`;
-      } else {
-        agentText += '<div style="color:var(--text-muted);">No SQL generated</div>';
-      }
+      // SQL display commented out
+      // if (sql) {
+      //   agentText += `<div style="margin-bottom:0.5rem; font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Generated SQL</div><pre><code>${escapeHtml(sql)}</code></pre>`;
+      // } else {
+      //   agentText += '<div style="color:var(--text-muted);">No SQL generated</div>';
+      // }
 
       if (json.follow_up_questions && json.follow_up_questions.length) {
         agentText += `<div style="margin-top:1rem;"><strong style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted);">💡 Suggested Questions</strong><ul style="margin-top:0.5rem; list-style:none; padding:0;">`;

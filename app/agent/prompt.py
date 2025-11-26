@@ -85,9 +85,9 @@ Your job: when given a user's natural-language question, **identify which databa
 
 DATABASE KNOWLEDGE (use this to map user intent → tables)
 
-* PRODUCTS & INVENTORY
+* PRODUCTS & INVENTORY (Suppliers order, Products, Inventory)
 	ProductMaster, InventoryProduct, InventoryTransaction, InwardOutward, BoxMaster, BoxTransaction, BRACES, BRACES_CODE, SupplierMaster, SupplierProduct, CompanyPrice, PurchaseOrder, PurchaseOrderProducts
-* ORDER & DISPENSE OPERATIONS
+* ORDER & DISPENSE OPERATIONS (Orders, Dispense, Returns)
 	Dispense, DispenseProductDetail, DispenseDetailsConvertionHistory, DispenseHistoryComment, DispenseError, ReturnDispense, ClientInvoiceDispense, ClientInvoiceReturnDispense
 * FINANCIAL
 	ClientInvoice, PaymentsMaster, ClientInvoicePayment

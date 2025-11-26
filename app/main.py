@@ -1,4 +1,4 @@
-"""FastAPI application for SQL Insight Agent."""
+"""FastAPI application for AQ Insight Agent."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ logger = setup_logging(__name__)
 
 # Create FastAPI app
 app = FastAPI(
-    title="SQL Insight Agent",
+    title="AQ Insight Agent",
     description="Natural Language to SQL query agent powered by LangChain with provider fallback",
     version="1.0.0",
 )
@@ -218,7 +218,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         follow_up_questions: List[str] | None = None
 
         # Use context-aware agent if user_id and session_id are provided
-        for provider in providers:
+        for provider_idx, provider in enumerate(providers):
             try:
                 if request.user_id and request.session_id:
                     # Use conversation-aware agent
@@ -256,7 +256,26 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                 break
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
-                logger.exception("Provider %s failed during SQL generation", provider)
+                error_str = str(exc).lower()
+                
+                # Detect rate limit or provider errors
+                is_rate_limit = "429" in error_str or "rate" in error_str and "limit" in error_str
+                is_provider_error = "provider returned error" in error_str
+                
+                if is_rate_limit or is_provider_error:
+                    logger.warning(
+                        "Provider %s hit rate limit or temporary error (attempt %d/%d). Trying next provider.",
+                        provider,
+                        provider_idx + 1,
+                        len(providers),
+                    )
+                else:
+                    logger.exception("Provider %s failed during SQL generation", provider)
+                
+                # Continue to next provider if available
+                if provider_idx < len(providers) - 1:
+                    logger.info("Falling back to next provider: %s", providers[provider_idx + 1])
+                    continue
 
         if agent_output is None:
             detail = (
@@ -722,7 +741,7 @@ def _build_pipeline_report(
 async def root():
     """Root endpoint with API documentation link."""
     return {
-        "message": "SQL Insight Agent API",
+        "message": "AQ Insight Agent API",
         "docs": "/docs",
         "health": "/health",
         "endpoints": {
@@ -736,7 +755,7 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
 
-    logger.info("Starting SQL Insight Agent API server")
+    logger.info("Starting AQ Insight Agent API server")
     uvicorn.run(
         "app.main:app",
         host="127.0.0.1",

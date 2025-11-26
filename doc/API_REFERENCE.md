@@ -1,4 +1,4 @@
-# SQL Insight Agent - API Quick Reference
+# AQ Insight Agent - API Quick Reference
 
 ## Base URL
 ```
@@ -124,7 +124,7 @@ Enroll a new database: extract schema, generate documentation, create embeddings
 
 ### Connection String Formats
 
-**⚠️ SECURITY REQUIREMENT**: Always use READ-ONLY database credentials in connection strings. The SQL Insight Agent only needs SELECT permissions.
+**⚠️ SECURITY REQUIREMENT**: Always use READ-ONLY database credentials in connection strings. The AQ Insight Agent only needs SELECT permissions.
 
 **SQL Server (with read-only user):**
 ```
@@ -255,7 +255,7 @@ curl -X GET "http://127.0.0.1:8000/health"
 ```json
 {
   "status": "healthy",
-  "message": "SQL Insight Agent is running",
+  "message": "AQ Insight Agent is running",
   "version": "1.0.0"
 }
 ```
@@ -276,7 +276,7 @@ curl -X GET "http://127.0.0.1:8000/"
 
 ```json
 {
-  "message": "SQL Insight Agent API",
+  "message": "AQ Insight Agent API",
   "docs": "/docs",
   "health": "/health",
   "endpoints": {
@@ -585,7 +585,7 @@ Import this JSON into Postman:
 ```json
 {
   "info": {
-    "name": "SQL Insight Agent API",
+    "name": "AQ Insight Agent API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -675,7 +675,7 @@ Currently no rate limits enforced. Recommended limits for production:
    - See `POSTGRESQL_SETUP.md` → Security Configuration for setup scripts
    
 2. **Why this matters**:
-   - SQL Insight Agent only needs to READ data, never write
+   - AQ Insight Agent only needs to READ data, never write
    - Prevents accidental data modification
    - Protects against SQL injection or malicious queries
    - Follows principle of least privilege

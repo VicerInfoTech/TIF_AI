@@ -6,7 +6,6 @@ from datetime import datetime
 from datetime import timezone
 import os
 import time
-from functools import lru_cache
 from typing import Any, List, Callable, Optional
 from langsmith import traceable
 from pydantic import BaseModel, Field, ValidationError
@@ -54,7 +53,7 @@ PROVIDER_PRIORITY: list[tuple[str, str | None]] = [
 	("deepseek", "DEEPSEEK_API_KEY"),
 	("groq", "GROQ_API_KEY"),
 	("anthropic", "ANTHROPIC_API_KEY"),
-	("gemini", None),
+	("gemini", "GOOGLE_API_KEY"),
 ]
 
 
@@ -64,8 +63,12 @@ def get_available_providers() -> list[str]:
 	for provider, key_env in PROVIDER_PRIORITY:
 		if key_env is None or os.environ.get(key_env):
 			available.append(provider)
+	# Always add Gemini as fallback even without API key (uses free tier)
+	if "gemini" not in available:
+		available.append("gemini")
+		logger.debug("Added Gemini as fallback provider (free tier)")
 	if not available:
-		logger.debug("No API-key-backed provider, falling back to Gemini")
+		logger.debug("No providers available, defaulting to Gemini")
 		return ["gemini"]
 	logger.debug("Available providers via env: %s", available)
 	return available
@@ -317,7 +320,6 @@ def _build_context_from_history(
 		return "", ""
 
 
-@lru_cache(maxsize=None)
 def get_llm(provider: str = None) -> BaseChatModel:
 	"""Return the preferred LLM client with provider fallback. If provider is None, auto-select by API key presence."""
 	try:
@@ -367,14 +369,15 @@ def get_llm(provider: str = None) -> BaseChatModel:
 			if provider_normalized not in provider_map:
 				raise ValueError(f"Unsupported provider '{provider}'")
 			key_env = dict(PROVIDER_PRIORITY).get(provider_normalized)
-			if key_env and not os.environ.get(key_env):
-				logger.warning(
-					"Requested provider '%s' missing API key; falling back to auto-selection",
-					provider_normalized,
-				)
-			else:
+			# For Gemini, allow initialization even without API key (free tier)
+			if provider_normalized == "gemini" or (key_env is None) or os.environ.get(key_env):
 				logger.debug(f"Initializing {provider_normalized} model (explicit)")
 				return provider_map[provider_normalized]()
+			else:
+				logger.warning(
+					"Requested provider '%s' missing API key and not a free provider; falling back to auto-selection",
+					provider_normalized,
+				)
 		# Auto-select: pick the first provider with credentials
 		for prov in get_available_providers():
 			if prov in provider_map:
@@ -412,12 +415,11 @@ def get_cached_agent_with_context(
 	return create_sql_agent(llm, system_prompt)
 
 
-@lru_cache(maxsize=None)
 def get_cached_agent(provider: str, db_flag: str) -> Any:
-	"""Return a cached agent runnable for the provider and database context.
+	"""Return an agent runnable for the provider and database context.
 	
 	Note: Use get_cached_agent_with_context for conversation-aware agents.
-	This cached variant is for stateless/backward-compatible usage.
+	This variant is for stateless/backward-compatible usage.
 	"""
 
 	llm = get_llm(provider)
@@ -462,24 +464,33 @@ def summarize_query_results(provider: str, describe_text: str, raw_json: str) ->
 	"""Ask the LLM to generate a natural-language summary for the returned dataset."""
 	if not describe_text and not raw_json:
 		return None
-	llm = get_llm(provider)
 	prompt = RESULT_SUMMARY_PROMPT.format(
 		describe_text=describe_text or "No describe output available",
 		raw_json=_truncate_json(raw_json),
 	)
-	try:
-		response = llm.invoke(
-			{"messages": [HumanMessage(content=prompt)]}
-		)
-		content = getattr(response, "content", None)
-		if isinstance(content, str):
-			return content.strip()
-		if isinstance(response, str):
-			return response.strip()
-		return str(content).strip() if content is not None else None
-	except Exception as exc:  # pragma: no cover - best-effort summary
-		logger.warning("Result summary generation failed: %s", exc)
-		return None
+	
+	# Try the specified provider first, then fallback to others
+	providers_to_try = [provider] + [p for p in get_available_providers() if p != provider]
+	
+	for prov in providers_to_try:
+		try:
+			llm = get_llm(prov)
+			response = llm.invoke(
+				{"messages": [HumanMessage(content=prompt)]}
+			)
+			content = getattr(response, "content", None)
+			if isinstance(content, str):
+				return content.strip()
+			if isinstance(response, str):
+				return response.strip()
+			return str(content).strip() if content is not None else None
+		except Exception as exc:  # pragma: no cover - best-effort summary
+			logger.warning("Result summary generation failed for provider=%s: %s", prov, exc)
+			if prov != providers_to_try[-1]:  # Not the last provider
+				logger.debug("Trying next provider for summary generation")
+				continue
+	
+	return None
 
 
 __all__ = [

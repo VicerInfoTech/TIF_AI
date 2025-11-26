@@ -1,4 +1,4 @@
-# SQL Insight Agent
+# AQ Insight Agent
 
 A LangGraph-based, agentic SQL query system for SQL Server and MySQL, with natural language to SQL, schema-driven intelligence, and secure validation. Built with FastAPI, multiple LLM providers (OpenAI, Anthropic, Groq, Gemini, DeepSeek), and YAML-based schema introspection.
 
