@@ -33,7 +33,7 @@ def format_results(
 
 	if dataframe is None:
 		return {
-			"status": "error",
+			"status": False,
 			"data": {},
 			"message": "No data returned",
 		}
@@ -48,30 +48,13 @@ def format_results(
 	csv_payload = dataframe.to_csv(index=False)
 	raw_json_payload = dataframe.to_json(orient="records", date_format="iso")
 
-	describe_df = dataframe.describe(include="all")
-	describe_summary: Dict[str, Dict[str, Any]] = {}
-	describe_text = ""
-	if not describe_df.empty:
-		describe_text = describe_df.to_string()
-		describe_summary = {
-			column: {
-				metric: _serialize_value(value)
-				for metric, value in metrics.items()
-			}
-			for column, metrics in describe_df.transpose().to_dict().items()
-		}
-
 	return {
-		"status": "success",
+		"status": True,
 		"data": {
 			"results": payload,
-			"sql": sql,
 			"row_count": len(dataframe.index),
-			"execution_time_ms": execution_time_ms,
 			"csv": csv_payload,
 			"raw_json": raw_json_payload,
-			"describe": describe_summary,
-			"describe_text": describe_text,
 		},
 	}
 

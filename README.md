@@ -5,6 +5,7 @@ A LangGraph-based, agentic SQL query system for SQL Server and MySQL, with natur
 ---
 
 ## Features
+
 - Natural language to SQL (NL2SQL) API
 - Multi-database support (add new DBs via API or config table)
 - Secure, read-only SQL validation (prevents unsafe queries)
@@ -21,12 +22,15 @@ A LangGraph-based, agentic SQL query system for SQL Server and MySQL, with natur
 ## Quickstart
 
 ### 1. Install `uv` (Windows)
+
 This project uses `uv` for dependency management. Install it via PowerShell:
+
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 ### 2. Clone & Sync
+
 ```sh
 git clone <your-repo-url>
 cd sql-insight-agent
@@ -34,9 +38,11 @@ uv sync
 ```
 
 ### 2. Environment Variables
+
 Create a `.env` file in the project root. The following environment variables are supported:
 
 #### LLM Providers (Set at least one)
+
 - `OPENAI_API_KEY` — OpenAI
 - `OPENROUTER_API_KEY` — OpenRouter
 - `DEEPSEEK_API_KEY` — DeepSeek
@@ -45,9 +51,11 @@ Create a `.env` file in the project root. The following environment variables ar
 - `GOOGLE_API_KEY` — Gemini/Google
 
 #### Database/Vector Store
+
 - `POSTGRES_CONNECTION_STRING` — Connection string for your PGVector-enabled Postgres instance (required for schema embeddings and agent checkpoints)
 
 Example `.env`:
+
 ```
 GROQ_API_KEY=your-groq-api-key
 OPENAI_API_KEY=your-openai-api-key
@@ -55,21 +63,26 @@ POSTGRES_CONNECTION_STRING=postgresql://user:password@host:5432/dbname
 ```
 
 ### 3. Database Configuration
+
 Databases are configured via the `DatabaseConfig` table in the project database. You can enroll a new database using the API.
 
 #### Enroll a Database via API
+
 Use the `POST /schemas/enroll` endpoint to register a database, extract its schema, and generate embeddings.
 
 ```json
 POST /schemas/enroll
+```json
 {
-  "db_flag": "avamed_db",
-  "connection_string": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=host;DATABASE=avamed_db;UID=user;PWD=pass",
+  "db_flag": "your_db_flag",
+  "connection_string": "DRIVER={ODBC Driver 17 for SQL Server};SERVER=your_server;DATABASE=your_database;UID=your_user;PWD=your_password",
   "db_type": "mssql",
-  "description": "AvasMed DME management database",
+  "description": "Description of your database",
   "run_documentation": true,
   "run_embeddings": true
 }
+```
+
 ```
 
 ### 4. Run the API
@@ -79,20 +92,24 @@ uv run ./run.py
 python -m app.main
 ```
 
-API will be available at: http://127.0.0.1:8000
+API will be available at: <http://127.0.0.1:8000>
 
 ---
 
 ## API Endpoints
 
 ### Query Endpoint
+
 - `POST /query`
 - Request body:
+
 ```json
 {
   "query": "Show me all orders for September 2025",
-  "db_flag": "avamed_db"
+  "db_flag": "your_database_flag"
 }
+```
+
 ```
 - Returns: SQL, results (CSV, JSON, describe), and a natural-language summary.
 
@@ -145,6 +162,7 @@ This repository includes a developer-facing chat UI for manual testing. It is in
 
 ## Project Structure
 ```
+
 app/
   main.py           # FastAPI entrypoint
   user_db_config_loader.py # DB config loader
@@ -162,6 +180,7 @@ Log/
 tests/
 run.py
 README.md
+
 ```
 
 ---

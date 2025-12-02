@@ -14,7 +14,7 @@ from app.schema_pipeline.minimal_text import yaml_to_minimal_text
 from app.schema_pipeline.structured_docs import yaml_to_structured_sections
 
 # Configuration
-DB_FLAG = "avamed_db"  # Default to avamed_db, change if needed
+DB_FLAG = "your_db_flag"  # Default placeholder: use your_db_flag (update as needed)
 SCHEMA_DIR = PROJECT_ROOT / "config" / "schemas" / DB_FLAG
 OUTPUT_FILE = Path(__file__).parent / "embedding_preview.txt"
 

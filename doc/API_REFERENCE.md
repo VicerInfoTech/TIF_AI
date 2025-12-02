@@ -57,17 +57,15 @@ curl -X POST "http://127.0.0.1:8000/query" \
 
 ```json
 {
-  "status": "success",
-  "sql": "SELECT TOP 10 CustomerID, CustomerName, SUM(OrderTotal) as TotalValue FROM Orders...",
+  "status": true,
   "validation_passed": true,
   "data": {
     "results": [...],
     "row_count": 10,
-    "execution_time_ms": 245.67,
+    "csv": "CustomerID,CustomerName,TotalValue\n...",
     "csv": "CustomerID,CustomerName,TotalValue\n...",
     "raw_json": "[{...}]"
   },
-  "selected_tables": ["Orders", "Customers"],
   "follow_up_questions": [
     "Would you like to see this by product category?",
     "Should I compare to last quarter?"
@@ -85,8 +83,7 @@ curl -X POST "http://127.0.0.1:8000/query" \
 
 ```json
 {
-  "status": "error",
-  "sql": "SELECT * FROM NonExistentTable",
+  "status": false,
   "validation_passed": true,
   "error": "Table 'NonExistentTable' does not exist",
   "data": null,

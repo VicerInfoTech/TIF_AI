@@ -114,26 +114,26 @@
 ```python
 1. Receive QueryRequest:
    - query: "I want to know from which company I receive how many return order in the October 2024"
-   - db_flag: "avamed_db"
+  - db_flag: "your_db_flag"
    - output_format: "json"
 
-2. Load database settings for 'avamed_db':
+2. Load database settings for 'your_db_flag':
    - Fetch connection string (MSSQL server details)
-  - Load intro_template path (e.g., D:/sql-insight-agent/database_schemas/avamed_db/db_intro/avamed_db_intro.txt)
+  - Load intro_template path (e.g., D:/sql-insight-agent/database_schemas/your_db_flag/db_intro/your_db_flag_intro.txt)
    - Load description
 
 3. Resolve collection name:
-   - default_collection_name("avamed_db") → "avamed_db_docs"
+  - default_collection_name("your_db_flag") → "your_db_flag_docs"
    - How it's selected: Environment variable lookup chain:
-     a. Check: PGVECTOR_COLLECTION_NAME_AVAMED_DB (specific override)
+     a. Check: PGVECTOR_COLLECTION_NAME_YOUR_DB_FLAG (specific override)
      b. Check: PGVECTOR_COLLECTION_NAME (global default)
-     c. Fallback: "{db_flag}_docs" = "avamed_db_docs"
+     c. Fallback: "{db_flag}_docs" = "your_db_flag_docs"
 ```
 
 **Log Output:**
 ```
-2025-11-19 19:18:33 - main:167 - INFO - Received query request: query=..., db_flag=avamed_db, format=json
-2025-11-19 19:18:33 - config:98 - INFO - Fetching database settings for db_flag= avamed_db
+2025-11-19 19:18:33 - main:167 - INFO - Received query request: query=..., db_flag=your_db_flag, format=json
+2025-11-19 19:18:33 - config:98 - INFO - Fetching database settings for db_flag= your_db_flag
 ```
 
 ---
@@ -178,10 +178,10 @@ For each provider:
 
 **What happens:**
 ```python
-with agent_context(db_flag="avamed_db", collection_name="avamed_db_docs"):
+with agent_context(db_flag="your_db_flag", collection_name="your_db_flag_docs"):
     # Inside this block:
-    # - _current_db_flag context variable = "avamed_db"
-    # - _current_collection context variable = "avamed_db_docs"
+  # - _current_db_flag context variable = "your_db_flag"
+  # - _current_collection context variable = "your_db_flag_docs"
     # - _accessed_tables context variable = empty set (tracks used tables)
     
     # These context vars are thread-local and accessible to all tools
@@ -190,7 +190,7 @@ with agent_context(db_flag="avamed_db", collection_name="avamed_db_docs"):
 
 **Log Output:**
 ```
-2025-11-19 19:18:34 - tools:60 - DEBUG - Agent context set db_flag=avamed_db collection=avamed_db_docs
+2025-11-19 19:18:34 - tools:60 - DEBUG - Agent context set db_flag=your_db_flag collection=your_db_flag_docs
 ```
 
 ---
@@ -283,7 +283,7 @@ Action:
 2. Search PGVector collection with filters:
    {
      "section": "summary",
-     "db_flag": "avamed_db"
+     "db_flag": "your_db_flag"
    }
 3. Return top 4 documents (summaries of candidate tables)
 
@@ -296,9 +296,9 @@ Output: Descriptions of:
 
 **Log Output:**
 ```
-2025-11-19 19:18:34 - retriever:59 - DEBUG - Creating PGVector client for collection=avamed_db_docs
+2025-11-19 19:18:34 - retriever:59 - DEBUG - Creating PGVector client for collection=your_db_flag_docs
 2025-11-19 19:18:34 - retriever:44 - DEBUG - Initializing HuggingFace embeddings model=jinaai/jina-embeddings-v3
-2025-11-19 19:18:48 - retriever:78 - DEBUG - vector_search collection=avamed_db_docs filters={'section': 'summary', 'db_flag': 'avamed_db'} hits=4
+2025-11-19 19:18:48 - retriever:78 - DEBUG - vector_search collection=your_db_flag_docs filters={'section': 'summary', 'db_flag': 'your_db_flag'} hits=4
 ```
 
 #### **Tool 2 & 3: fetch_table_summary() & fetch_table_section()**
@@ -306,24 +306,24 @@ Output: Descriptions of:
 For each identified table, agent calls:
 
 fetch_table_summary(table_name="ReturnDispense")
-  Filters: {"section": "summary", "table_name": "ReturnDispense", "db_flag": "avamed_db"}
+  Filters: {"section": "summary", "table_name": "ReturnDispense", "db_flag": "your_db_flag"}
   Returns: Full description of ReturnDispense table
 
 fetch_table_section(table_name="ReturnDispense", section="columns")
-  Filters: {"section": "columns", "table_name": "ReturnDispense", "db_flag": "avamed_db"}
+  Filters: {"section": "columns", "table_name": "ReturnDispense", "db_flag": "your_db_flag"}
   Returns: List of all columns with data types
 
 fetch_table_section(table_name="ClientInvoice", section="relationships")
-  Filters: {"section": "relationships", "table_name": "ClientInvoice", "db_flag": "avamed_db"}
+  Filters: {"section": "relationships", "table_name": "ClientInvoice", "db_flag": "your_db_flag"}
   Returns: Foreign key relationships to other tables
 ```
 
 **Log Output:**
 ```
-2025-11-19 19:18:49 - retriever:78 - DEBUG - vector_search collection=avamed_db_docs filters={'section': 'summary', 'table_name': 'ReturnDispense', 'db_flag': 'avamed_db', 'schema': 'dbo'} hits=1
-2025-11-19 19:18:49 - retriever:78 - DEBUG - vector_search collection=avamed_db_docs filters={'section': 'summary', 'table_name': 'ClientInvoice', 'db_flag': 'avamed_db', 'schema': 'dbo'} hits=1
-2025-11-19 19:18:49 - retriever:78 - DEBUG - vector_search collection=avamed_db_docs filters={'section': 'summary', 'table_name': 'ClientInvoiceReturnDispense', 'db_flag': 'avamed_db', 'schema': 'dbo'} hits=1
-2025-11-19 19:18:49 - retriever:78 - DEBUG - vector_search collection=avamed_db_docs filters={'section': 'summary', 'table_name': 'CompanyMaster', 'db_flag': 'avamed_db', 'schema': 'dbo'} hits=1
+2025-11-19 19:18:49 - retriever:78 - DEBUG - vector_search collection=your_db_flag_docs filters={'section': 'summary', 'table_name': 'ReturnDispense', 'db_flag': 'your_db_flag', 'schema': 'dbo'} hits=1
+2025-11-19 19:18:49 - retriever:78 - DEBUG - vector_search collection=your_db_flag_docs filters={'section': 'summary', 'table_name': 'ClientInvoice', 'db_flag': 'your_db_flag', 'schema': 'dbo'} hits=1
+2025-11-19 19:18:49 - retriever:78 - DEBUG - vector_search collection=your_db_flag_docs filters={'section': 'summary', 'table_name': 'ClientInvoiceReturnDispense', 'db_flag': 'your_db_flag', 'schema': 'dbo'} hits=1
+2025-11-19 19:18:49 - retriever:78 - DEBUG - vector_search collection=your_db_flag_docs filters={'section': 'summary', 'table_name': 'CompanyMaster', 'db_flag': 'your_db_flag', 'schema': 'dbo'} hits=1
 ```
 
 ---
@@ -429,15 +429,13 @@ format_results(dataframe, output_format="json", ...):
 
 Output:
 {
-  "status": "success",
+  "status": true,
   "results": [
     {"Name": "Addicks Medical Supply LLC", "ReturnOrderCount": 85},
     {"Name": "Delta Medical Group Inc", "ReturnOrderCount": 133},
     ...
   ],
-  "row_count": 10,
-  "sql": "SELECT ...",
-  "execution_time_ms": 85.49
+  "row_count": 10
 }
 ```
 
@@ -450,22 +448,15 @@ Output:
 **QueryResponse Structure:**
 ```python
 {
-  "status": "success",                    # success or error
-  "sql": "SELECT ...",                    # Generated T-SQL
+  "status": true,                    # boolean: success or failure
   "validation_passed": true,              # SQL passed validation?
   "data": {                               # Results in requested format
     "results": [...],
     "row_count": 10,
-    "execution_time_ms": 85.49
+    # execution_time_ms moved into `metadata` (see below)
   },
   "error": null,                          # Error message (if any)
-  "selected_tables": [                    # Tables used in query
-    "ClientInvoice",
-    "ClientInvoiceReturnDispense",
-    "CompanyMaster",
-    "ReturnDispense"
-  ],
-  "keyword_matches": null,                # Schema search keywords (future)
+  # Removed: selected_tables and keyword_matches; internal schema selection details are not included in the public response
   "metadata": {                           # Execution metadata
     "execution_time_ms": 85.49,
     "total_rows": 10,
@@ -511,7 +502,7 @@ Output:
 
 1. **Per-database environment override:**
    ```bash
-   PGVECTOR_COLLECTION_NAME_AVAMED_DB="my_custom_collection"  # ← Highest priority
+  PGVECTOR_COLLECTION_NAME_YOUR_DB_FLAG="my_custom_collection"  # ← Highest priority
    ```
 
 2. **Global collection override:**
@@ -522,7 +513,7 @@ Output:
 3. **Auto-generated fallback:**
    ```python
    f"{db_flag}_docs"  # ← Lowest priority
-   # For db_flag="avamed_db" → "avamed_db_docs"
+  # For db_flag="your_db_flag" → "your_db_flag_docs"
    # For db_flag="medical_db_prod" → "medical_db_prod_docs"
    ```
 
@@ -552,13 +543,13 @@ def default_collection_name(db_flag: str) -> str:
 **Log Trace:**
 ```
 app/main.py calls:
-  collection_name = default_collection_name("avamed_db")
+  collection_name = default_collection_name("your_db_flag")
 
 default_collection_name() returns:
-  "avamed_db_docs"  (because no env overrides are set)
+  "your_db_flag_docs"  (because no env overrides are set)
 
 This collection is then used in:
-  agent_context(db_flag="avamed_db", collection_name="avamed_db_docs")
+  agent_context(db_flag="your_db_flag", collection_name="your_db_flag_docs")
 ```
 
 ---
@@ -573,25 +564,25 @@ This collection is then used in:
 
 1. **Always included:**
    ```python
-   {"db_flag": "avamed_db"}  # Only docs from this database
+  {"db_flag": "your_db_flag"}  # Only docs from this database
    ```
 
 2. **By search type:**
    ```python
    # For searching candidate tables
-   {"section": "summary", "db_flag": "avamed_db"}
+  {"section": "summary", "db_flag": "your_db_flag"}
    
    # For fetching specific table info
-   {"section": "columns", "table_name": "ReturnDispense", "db_flag": "avamed_db"}
+  {"section": "columns", "table_name": "ReturnDispense", "db_flag": "your_db_flag"}
    
    # For relationships
-   {"section": "relationships", "table_name": "ClientInvoice", "db_flag": "avamed_db"}
+  {"section": "relationships", "table_name": "ClientInvoice", "db_flag": "your_db_flag"}
    ```
 
 **Log Example:**
 ```
-vector_search collection=avamed_db_docs 
-  filters={'section': 'summary', 'table_name': 'CompanyMaster', 'db_flag': 'avamed_db', 'schema': 'dbo'} 
+vector_search collection=your_db_flag_docs 
+  filters={'section': 'summary', 'table_name': 'CompanyMaster', 'db_flag': 'your_db_flag', 'schema': 'dbo'} 
   hits=1
 ```
 
@@ -607,7 +598,7 @@ vector_search collection=avamed_db_docs
        ▼
 ┌──────────────────────────────────────┐
 │ 1. Load Config & Resolve Collection  │
-│    collection_name = "avamed_db_docs"│
+│    collection_name = "your_db_flag_docs"│
 └──────┬───────────────────────────────┘
        │
        ▼
@@ -722,30 +713,30 @@ Result:
 ```
 Request Flow:
 
-1. FastAPI receives: db_flag="avamed_db"
+1. FastAPI receives: db_flag="your_db_flag"
    │
-   ├─ Load config for "avamed_db"
+  ├─ Load config for "your_db_flag"
+  │
+  ├─ Call: default_collection_name("your_db_flag")
+  │  ├─ Check: `PGVECTOR_COLLECTION_NAME_YOUR_DB_FLAG` env var → Not set
+  │  ├─ Check: `PGVECTOR_COLLECTION_NAME` env var → Not set
+  │  └─ Return: `"your_db_flag_docs"` (fallback)
    │
-   ├─ Call: default_collection_name("avamed_db")
-   │  ├─ Check: PGVECTOR_COLLECTION_NAME_AVAMED_DB env var → Not set
-   │  ├─ Check: PGVECTOR_COLLECTION_NAME env var → Not set
-   │  └─ Return: "avamed_db_docs" (fallback)
-   │
-   ├─ Create agent_context(db_flag="avamed_db", collection_name="avamed_db_docs")
+  ├─ Create agent_context(db_flag="your_db_flag", collection_name="your_db_flag_docs")
    │
    ├─ Agent calls tools:
-   │  ├─ search_tables() → Uses collection "avamed_db_docs" + filter db_flag="avamed_db"
-   │  ├─ fetch_table_summary() → Uses collection "avamed_db_docs" + filters
-   │  ├─ fetch_table_section() → Uses collection "avamed_db_docs" + filters
+  │  ├─ search_tables() → Uses collection "your_db_flag_docs" + filter db_flag="your_db_flag"
+  │  ├─ fetch_table_summary() → Uses collection "your_db_flag_docs" + filters
+  │  ├─ fetch_table_section() → Uses collection "your_db_flag_docs" + filters
    │  └─ validate_sql() → No collection used
    │
-   └─ All retrieval calls query PGVector collection "avamed_db_docs"
-      with metadata filters ensuring only correct database docs returned
+  └─ All retrieval calls query PGVector collection "your_db_flag_docs"
+    with metadata filters ensuring only correct database docs returned
 
 Final Result:
   Only schema documents tagged with:
-    - collection: "avamed_db_docs"
-    - metadata: {"db_flag": "avamed_db", ...}
+    - collection: "your_db_flag_docs"
+    - metadata: {"db_flag": "your_db_flag", ...}
   are retrieved and used by the agent.
 ```
 

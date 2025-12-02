@@ -12,7 +12,7 @@ from app.schema_pipeline.minimal_text import yaml_to_minimal_text
 from app.models import SectionContent, StructuredSchemaData
 from app.utils.logger import setup_logging
 
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="INFO")
 
 
 def yaml_to_structured_sections(file_path: Path | str) -> Dict[str, Any]:

@@ -7,9 +7,9 @@ for database schemas using LLMs with guaranteed schema validation.
 from __future__ import annotations
 
 import json
- 
+
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Tuple, Optional
 from app.models import ColumnDocumentation, TableDocumentation
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
@@ -20,8 +20,9 @@ import time
 load_dotenv()
 
 from app.utils.logger import setup_logging
+from app.schema_pipeline.db_intro_parser import DbIntroParser, DeprecationInfo
 
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="INFO")
 
 from app.models import SchemaDocumentationSummary
 
@@ -60,7 +61,10 @@ class SchemaDocumentingAgent:
                     "system",
                     """You are a documentation specialist who rewrites table narratives and column
 summaries for business audiences. You have access to the full db intro (``business_intro``) and
-should use it to expand the short table description provided by the schema index.
+should use it to expand the short table description provided by the schema index. You also receive
+an additional ``deprecation_context`` section containing natural-language notes about deprecated columns,
+replacement columns, and migration guidance. Prioritize that section when marking columns as deprecated and
+include any migration advice verbatim in the generated metadata.
 
 Guidelines:
 1. **Table Description**: Rewrite or expand the provided table short description into
@@ -93,6 +97,7 @@ Rewrite the table description and return the updated narrative plus the column d
         table_description: str,
         columns: List[Dict[str, Any]],
         business_intro: str,
+        deprecation_context: str,
         max_retries: int = 5,
         initial_delay: float = 10.0,
     ) -> Tuple[Dict[str, ColumnDocumentation], str]:
@@ -107,6 +112,8 @@ Rewrite the table description and return the updated narrative plus the column d
             table_description: Human-readable description of the table's purpose
             columns: List of column dictionaries with keys: 'name', 'type', etc.
             business_intro: Business context text to guide documentation style
+            deprecation_context: Natural-language deprecation notes to highlight deprecated
+                columns and migration guidance.
 
         Returns:
             Tuple containing the column documentation map and the rewritten table description.
@@ -151,6 +158,13 @@ Rewrite the table description and return the updated narrative plus the column d
             table_identifier=f"{schema_name}.{table_name}",
         )
 
+        trimmed_dep_context, dep_trimmed = self._truncate_text(
+            deprecation_context or "",
+            max_chars=3000,
+            label="deprecation_context",
+            table_identifier=f"{schema_name}.{table_name}",
+        )
+
         # Build prompt variables early so token-counting and other diagnostics can inspect them
         prompt_vars = {
             "business_intro": trimmed_intro,
@@ -158,6 +172,7 @@ Rewrite the table description and return the updated narrative plus the column d
             "schema_name": schema_name,
             "table_description": trimmed_description,
             "columns_json": columns_json,
+            "deprecation_context": trimmed_dep_context,
         }
 
         logger.debug(
@@ -348,7 +363,7 @@ Rewrite the table description and return the updated narrative plus the column d
         table's columns using the LLM, and writes the updated YAML files back to disk.
 
         Args:
-            schema_yaml_dir: Directory containing schema YAML files (e.g. /avamed_db)
+            schema_yaml_dir: Directory containing schema YAML files (e.g. /your_db_flag/schema/)
             business_intro_path: Path to business intro text file for context
             incremental: If True, skip tables that are already fully documented.
 
@@ -358,27 +373,39 @@ Rewrite the table description and return the updated narrative plus the column d
         if not schema_yaml_dir.exists():
             raise FileNotFoundError(f"Schema directory not found: {schema_yaml_dir}")
 
-        # Load business context
+        # Parse business context and deprecations
+        db_intro_context = ""
+        deprecation_section = ""
+        deprecations_list: List[DeprecationInfo] = []
+        
         if not business_intro_path.exists():
             logger.warning("Business intro file not found: %s", business_intro_path)
-            business_intro = "No business context provided."
+            db_intro_context = "No business context provided."
         else:
-            business_intro = business_intro_path.read_text(encoding="utf-8").strip()
+            db_intro_context, deprecation_section, deprecations_list = DbIntroParser.read_and_parse(business_intro_path)
+            
+            if not db_intro_context:
+                db_intro_context = "No business context provided."
+                logger.warning("Empty business intro file, using default context")
 
-        if not business_intro:
-            business_intro = "No business context provided."
-            logger.warning("Empty business intro file, using default context")
+        # Build deprecations map for quick lookup: {table_name: {column_name: DeprecationInfo}}
+        deprecations_map = {}
+        for dep in deprecations_list:
+            if dep.table_name not in deprecations_map:
+                deprecations_map[dep.table_name] = {}
+            deprecations_map[dep.table_name][dep.column_name] = dep
 
         logger.info(
             "Starting schema documentation with business intro from: %s",
             business_intro_path,
         )
+        logger.info("Found %d table(s) with deprecations to handle", len(deprecations_map))
 
         schema_index_path = schema_yaml_dir / "schema_index.yaml"
         schema_index_data = self._load_schema_index_data(schema_index_path)
         schema_index_map = self._build_index_map(schema_index_data)
         
-        intro_snippet = self._intro_snippet(business_intro)
+        intro_snippet = self._intro_snippet(db_intro_context)
 
         # Find all table YAML files (exclude metadata files)
         yaml_files = list(schema_yaml_dir.rglob("*.yaml"))
@@ -445,7 +472,8 @@ Rewrite the table description and return the updated narrative plus the column d
                     schema_name=schema_name,
                     table_description=table_description,
                     columns=columns,
-                    business_intro=business_intro,
+                    business_intro=db_intro_context,
+                    deprecation_context=deprecation_section,
                 )
 
                 table_data["description"] = rewritten_description or table_data.get("description", "")
@@ -467,6 +495,49 @@ Rewrite the table description and return the updated narrative plus the column d
                         logger.debug(
                             "No documentation for column %s in %s", col_name, yaml_file
                         )
+
+                # Apply deprecation metadata to columns
+                if table_name in deprecations_map:
+                    table_deprecations = deprecations_map[table_name]
+                    for col in columns:
+                        col_name = col["name"]
+                        if col_name in table_deprecations:
+                            dep = table_deprecations[col_name]
+                            col["deprecated"] = True
+                            col["deprecation_reason"] = dep.reason
+                            col["deprecated_in_favor_of"] = dep.migrate_to_column
+                            col["deprecated_in_table"] = dep.migrate_to_table
+                            col["join_key"] = dep.join_key
+                            col["deprecated_since"] = dep.deprecated_since
+                            logger.info(
+                                "Marked column %s.%s as deprecated (migrating to %s.%s via %s)",
+                                table_name,
+                                col_name,
+                                dep.migrate_to_table,
+                                dep.migrate_to_column,
+                                dep.join_key
+                            )
+
+                # Add table-level deprecations section
+                if table_name in deprecations_map:
+                    table_data["deprecations"] = [
+                        {
+                            "field": col_name,
+                            "reason": dep.reason,
+                            "deprecated_since": dep.deprecated_since,
+                            "migrate_to": {
+                                "table": dep.migrate_to_table,
+                                "column": dep.migrate_to_column,
+                                "join_key": dep.join_key
+                            }
+                        }
+                        for col_name, dep in deprecations_map[table_name].items()
+                    ]
+                    logger.info(
+                        "Added %d deprecation entries to table %s",
+                        len(table_data["deprecations"]),
+                        table_name
+                    )
 
                 # Update table-level keywords if empty
                 if not table_data.get("keywords"):
@@ -703,6 +774,7 @@ Rewrite the table description and return the updated narrative plus the column d
             for col in columns
         ]
         compact_prompt["columns_json"] = json.dumps(compact_columns, indent=2)
+        compact_prompt["deprecation_context"] = ""
         logger.debug(
             "Applied compact prompt for %s: intro dropped, description %d chars, %d column summaries",
             table_identifier,
@@ -725,7 +797,7 @@ def document_database_schema(
     in the specified directory, generating business-friendly documentation for columns.
 
     Args:
-        database_name: Name of the database (e.g., "avamed_db"). Used for logging.
+        database_name: Name of the database. Used for logging.
         schema_output_dir: Directory with generated schema YAML files to document
         intro_template_path: Path to business intro text file providing context
         provider: LLM provider to use. Defaults to auto-selection via get_llm.
@@ -737,9 +809,9 @@ def document_database_schema(
     Example:
         >>> from pathlib import Path
         >>> document_database_schema(
-        ...     database_name="avamed_db",
-        ...     schema_output_dir=Path("output/avamed_db"),
-        ...     intro_template_path=Path("database_schemas/avamed_db/db_intro/avamed_db_intro.txt"),
+        ...     database_name="your_database",
+        ...     schema_output_dir=Path("output/your_database"),
+        ...     intro_template_path=Path("database_schemas/your_database/db_intro/your_database_intro.txt"),
         ...     provider="groq"
         ... )
     """

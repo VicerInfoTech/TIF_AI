@@ -25,51 +25,55 @@ load_dotenv()
 from app.agent.tools import (
 	agent_context,
 	default_collection_name,
-	fetch_table_section_tool,
-	fetch_table_summary_tool,
 	get_collected_tables,
 	get_context_db_flag,
 	get_context_session_id,
 	get_context_user_id,
-	search_tables_tool,
+	get_database_schema,
 	validate_sql_tool,
+	get_tool_call_counts,
+	get_tool_cache,
 )
 from db.langchain_memory import get_checkpointer
 from langgraph.checkpoint.base import LATEST_VERSION
 from langgraph.checkpoint.base.id import uuid6
 from app.utils.logger import setup_logging
 from db.conversation_memory import (
-    store_query_context,
     get_query_history,
     format_conversation_summary,
 )
 
-logger = setup_logging(__name__)
-CHECKPOINTER = get_checkpointer()
+logger = setup_logging(__name__, level="DEBUG")
+# Do NOT initialize the checkpointer at import time (lazy init to avoid blocking startup)
+
 
 PROVIDER_PRIORITY: list[tuple[str, str | None]] = [
-	("openai", "OPENAI_API_KEY"),
-	("openrouter", "OPENROUTER_API_KEY"),
-	("deepseek", "DEEPSEEK_API_KEY"),
-	("groq", "GROQ_API_KEY"),
+	# Preferred order when multiple API keys are detected
+	# 1. Anthropic (claude)
 	("anthropic", "ANTHROPIC_API_KEY"),
+	# 2. OpenAI (gpt)
+	("openai", "OPENAI_API_KEY"),
+	# 3. Gemini (Google generative AI)
 	("gemini", "GOOGLE_API_KEY"),
+	# 4. Groq
+	("groq", "GROQ_API_KEY"),
+	# 5. OpenRouter
+	("openrouter", "OPENROUTER_API_KEY"),
+	# 6. DeepSeek (deepseek.ai)
+	("deepseek", "DEEPSEEK_API_KEY"),
 ]
 
-
 def get_available_providers() -> list[str]:
-	"""Return providers ordered by priority that have credentials available."""
+	"""Return providers ordered by priority that have credentials available.
+	Raise an error if no providers are found.
+	"""
 	available = []
 	for provider, key_env in PROVIDER_PRIORITY:
-		if key_env is None or os.environ.get(key_env):
+		if key_env is None or os.getenv(key_env):
 			available.append(provider)
-	# Always add Gemini as fallback even without API key (uses free tier)
-	if "gemini" not in available:
-		available.append("gemini")
-		logger.debug("Added Gemini as fallback provider (free tier)")
 	if not available:
-		logger.debug("No providers available, defaulting to Gemini")
-		return ["gemini"]
+		logger.error("No providers available. Please set at least one provider API key in environment variables.")
+		raise RuntimeError("No LLM providers available. Please configure at least one provider API key.")
 	logger.debug("Available providers via env: %s", available)
 	return available
 
@@ -77,6 +81,78 @@ def get_available_providers() -> list[str]:
 def get_preferred_provider() -> str:
 	"""Return the highest-priority provider that is runnable with existing credentials."""
 	return get_available_providers()[0]
+
+def get_llm(provider: str = None) -> BaseChatModel:
+	"""Return the preferred LLM client with provider fallback. If provider is None, auto-select by API key presence."""
+	try:
+		provider_map = {
+			"anthropic": lambda: ChatAnthropic(
+				model="claude-haiku-4-5-20251001",  # or your preferred Anthropic model
+				api_key=os.getenv("ANTHROPIC_API_KEY"),
+				temperature=0.1,
+			),
+			"openai": lambda: ChatOpenAI(
+				model="gpt-4o-mini",  # or your preferred OpenAI model
+				api_key=os.getenv("OPENAI_API_KEY"),
+				temperature=0.1,
+			),
+			"openrouter": lambda: ChatOpenAI(
+				model="kwaipilot/kat-coder-pro:free",  # or your preferred OpenRouter model
+				api_key=os.getenv("OPENROUTER_API_KEY"),
+				base_url="https://openrouter.ai/api/v1",
+				temperature=0.1,
+			),
+			"groq": lambda: ChatGroq(
+				model="qwen/qwen3-32b",
+				api_key=os.getenv("GROQ_API_KEY"),
+				temperature=0.1,
+			),
+			"gemini": lambda: ChatGoogleGenerativeAI(
+				model="gemini-2.5-pro",
+				temperature=0.1,
+			),
+			"deepseek": lambda: ChatDeepSeek(
+				model="deepseek-chat",
+				api_key=os.getenv("DEEPSEEK_API_KEY"),
+				api_base="https://api.deepseek.com/v1",
+				temperature=0.1,
+			),
+		}
+
+		alias_map = {
+			"google": "gemini",
+			"llama": "groq",
+			"llama4": "groq",
+		}
+
+		if provider:
+			provider_normalized = provider.lower()
+			provider_normalized = alias_map.get(provider_normalized, provider_normalized)
+			if provider_normalized not in provider_map:
+				raise ValueError(f"Unsupported provider '{provider}'")
+			key_env = dict(PROVIDER_PRIORITY).get(provider_normalized)
+			# For Gemini, allow initialization even without API key (free tier)
+			if provider_normalized == "gemini" or (key_env is None) or os.environ.get(key_env):
+				logger.debug(f"Initializing {provider_normalized} model (explicit)")
+				return provider_map[provider_normalized]()
+			else:
+				logger.warning(
+					"Requested provider '%s' missing API key and not a free provider; falling back to auto-selection",
+					provider_normalized,
+				)
+		# Auto-select: pick the first provider with credentials
+		for prov in get_available_providers():
+			if prov in provider_map:
+				logger.debug(f"Auto-selecting {prov} model (API key found)")
+				return provider_map[prov]()
+		logger.debug("Falling back to Gemini (no API key provider found)")
+		return provider_map["gemini"]()
+	except Exception as exc:
+		import traceback
+		logger.error("LLM initialization failed for provider=%s: %s", provider, traceback.format_exc())
+		raise RuntimeError(
+			f"Failed to initialize LLM for provider '{provider}'"
+		) from exc
 
 class QueryContext(BaseModel):
 	"""Track previous queries for context-aware responses"""
@@ -187,9 +263,12 @@ def _persist_checkpoint(request: ModelRequest, response: ModelResponse) -> None:
 	}
 	metadata = {"source": "input", "step": 0}
 	try:
-		CHECKPOINTER.put(config, checkpoint, metadata, checkpoint["channel_versions"])
+		cp = get_checkpointer()
+		cp.put(config, checkpoint, metadata, checkpoint["channel_versions"])
 	except Exception as exc:  # pragma: no cover - best-effort checkpointing
 		logger.debug("Failed to persist LangGraph checkpoint: %s", exc)
+	else:
+		logger.debug("Persisted LangGraph checkpoint id=%s for db=%s user=%s session=%s", checkpoint["id"], db_flag, user_id, session_id)
 
 
 @wrap_model_call
@@ -207,7 +286,12 @@ def debug_model_call(
 	handler: Callable[[ModelRequest], ModelResponse],
 ) -> ModelResponse:
 	"""Log inputs and outputs around every model invocation."""
-	logger.debug("Agent middleware - before model call input=%s", getattr(request, "input", None))
+	payload = getattr(request, "input", None)
+	logger.debug(
+		"Agent middleware - before model call input=%s messages_count=%s",
+		payload,
+		len(payload.get("messages", [])) if isinstance(payload, dict) and payload.get("messages") else None,
+	)
 	response = handler(request)
 	token_usage = None
 	result = getattr(response, "result", None)
@@ -216,7 +300,34 @@ def debug_model_call(
 		metadata = getattr(final_message, "response_metadata", {}) or {}
 		if isinstance(metadata, dict):
 			token_usage = metadata.get("token_usage")
-	logger.debug("Agent middleware - after model call tokens=%s", token_usage)
+	# Log tool-calls present on the response
+	try:
+		tool_calls = []
+		if isinstance(result, list):
+			for msg in result:
+				if hasattr(msg, "tool_calls") and getattr(msg, "tool_calls"):
+					tool_calls.extend(getattr(msg, "tool_calls") or [])
+		elif isinstance(result, dict) and result.get("tool_calls"):
+			tool_calls = result.get("tool_calls") or []
+		if tool_calls:
+			logger.debug("Agent middleware - tool_calls: %s", [getattr(tc, "name", tc.get("name") if isinstance(tc, dict) else str(tc)) for tc in tool_calls])
+	except Exception:
+		logger.debug("Agent middleware - tool call iteration failed", exc_info=True)
+	logger.debug("Agent middleware - after model call tokens=%s result_type=%s", token_usage, type(result))
+	# If structured response found, log it for debugging
+	try:
+		structured = getattr(response, "structured_response", None) or (result[-1].get("structured_response") if isinstance(result[-1], dict) else None)
+		if structured:
+			logger.debug("Structured response: %s", structured)
+	except Exception:
+		logger.debug("Failed to obtain structured_response for logging", exc_info=True)
+	# Log per-run tool diagnostics if available
+	try:
+		counts = get_tool_call_counts()
+		cache = get_tool_cache()
+		logger.debug("Tool diagnostics - counts=%s cache_keys=%s", counts, list(cache.keys())[:8])
+	except Exception:
+		logger.debug("Failed to collect tool diagnostics", exc_info=True)
 	return response
 
 
@@ -237,19 +348,19 @@ def _build_system_prompt(
 		previous_context=previous_context,
 	)
 @traceable
+
 def create_sql_agent(llm: BaseChatModel, system_prompt: str) -> Any:
 	"""Instantiate the LangChain agent runnable for SQL generation."""
 
 	tools = [
-		search_tables_tool,
-		fetch_table_summary_tool,
-		fetch_table_section_tool,
+		get_database_schema,
 		validate_sql_tool,
 	]
 	logger.debug(
-		"Creating SQL agent with tools=%s system_prompt_hash=%s",
+		"Creating SQL agent with tools=%s system_prompt_hash=%s system_prompt_len=%d",
 		[tool.name for tool in tools],
 		hash(system_prompt),
+		len(system_prompt or ""),
 	)
 	agent = create_agent(
 		model=llm,
@@ -320,79 +431,6 @@ def _build_context_from_history(
 		return "", ""
 
 
-def get_llm(provider: str = None) -> BaseChatModel:
-	"""Return the preferred LLM client with provider fallback. If provider is None, auto-select by API key presence."""
-	try:
-		provider_map = {
-			"openai": lambda: ChatOpenAI(
-				model="gpt-4o",  # or your preferred OpenAI model
-				api_key=os.getenv("OPENAI_API_KEY"),
-				temperature=0.1,
-			),
-			"openrouter": lambda: ChatOpenAI(
-				model="kwaipilot/kat-coder-pro:free",  # or your preferred OpenRouter model
-				api_key=os.getenv("OPENROUTER_API_KEY"),
-				base_url="https://openrouter.ai/api/v1",
-				temperature=0.1,
-			),
-			"deepseek": lambda: ChatDeepSeek(
-				model="deepseek-chat",
-				api_key=os.getenv("DEEPSEEK_API_KEY"),
-				api_base="https://api.deepseek.com/v1",
-				temperature=0.1,
-			),
-			"groq": lambda: ChatGroq(
-				model="qwen/qwen3-32b",
-				api_key=os.getenv("GROQ_API_KEY"),
-				temperature=0.1,
-			),
-			"anthropic": lambda: ChatAnthropic(
-				model="claude-3-opus-20240229",  # or your preferred Anthropic model
-				api_key=os.getenv("ANTHROPIC_API_KEY"),
-				temperature=0.1,
-			),
-			"gemini": lambda: ChatGoogleGenerativeAI(
-				model="gemini-2.5-pro",
-				temperature=0.1,
-			),
-		}
-
-		alias_map = {
-			"google": "gemini",
-			"llama": "groq",
-			"llama4": "groq",
-		}
-
-		if provider:
-			provider_normalized = provider.lower()
-			provider_normalized = alias_map.get(provider_normalized, provider_normalized)
-			if provider_normalized not in provider_map:
-				raise ValueError(f"Unsupported provider '{provider}'")
-			key_env = dict(PROVIDER_PRIORITY).get(provider_normalized)
-			# For Gemini, allow initialization even without API key (free tier)
-			if provider_normalized == "gemini" or (key_env is None) or os.environ.get(key_env):
-				logger.debug(f"Initializing {provider_normalized} model (explicit)")
-				return provider_map[provider_normalized]()
-			else:
-				logger.warning(
-					"Requested provider '%s' missing API key and not a free provider; falling back to auto-selection",
-					provider_normalized,
-				)
-		# Auto-select: pick the first provider with credentials
-		for prov in get_available_providers():
-			if prov in provider_map:
-				logger.debug(f"Auto-selecting {prov} model (API key found)")
-				return provider_map[prov]()
-		logger.debug("Falling back to Gemini (no API key provider found)")
-		return provider_map["gemini"]()
-	except Exception as exc:
-		import traceback
-		logger.error("LLM initialization failed for provider=%s: %s", provider, traceback.format_exc())
-		raise RuntimeError(
-			f"Failed to initialize LLM for provider '{provider}'"
-		) from exc
-
-
 def get_cached_agent_with_context(
 	provider: str,
 	db_flag: str,
@@ -412,6 +450,7 @@ def get_cached_agent_with_context(
 		conversation_summary=conversation_summary,
 		previous_context=previous_context,
 	)
+	logger.debug("get_cached_agent_with_context: provider=%s db_flag=%s user=%s session=%s prompt_len=%d", provider, db_flag, user_id, session_id, len(system_prompt))
 	return create_sql_agent(llm, system_prompt)
 
 
@@ -424,6 +463,7 @@ def get_cached_agent(provider: str, db_flag: str) -> Any:
 
 	llm = get_llm(provider)
 	system_prompt = _build_system_prompt(db_flag)
+	logger.debug("get_cached_agent: provider=%s db_flag=%s prompt_len=%d", provider, db_flag, len(system_prompt))
 	return create_sql_agent(llm, system_prompt)
 
 

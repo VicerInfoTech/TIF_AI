@@ -11,7 +11,7 @@ from app.schema_pipeline.introspector import SQLServerMetadataExtractor
 from app.schema_pipeline.writer import YamlSchemaWriter
 from app.utils.logger import setup_logging
 
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="INFO")
 
 
 class SchemaExtractionPipeline:

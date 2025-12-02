@@ -433,7 +433,7 @@ http://127.0.0.1:8000
   - Min length: 1 character
   - Description: Identifier for the target database (must be enrolled first)
   - Examples:
-    - "avamed_db"
+    - "your_db_flag"
     - "sales_prod"
     - "inventory_warehouse"
 
@@ -477,22 +477,18 @@ Content-Type: application/json
 
 ```json
 {
-  "status": "success | error",
-  "sql": "string | null",
+  "status": true | false,
   "validation_passed": "boolean | null",
   "data": {
     "results": "any",
-    "sql": "string",
     "row_count": "integer",
-    "execution_time_ms": "float | null",
     "csv": "string",
     "raw_json": "string",
     "describe": "object",
     "describe_text": "string"
   } | null,
   "error": "string | null",
-  "selected_tables": ["string"] | null,
-  "keyword_matches": ["string"] | null,
+  # Removed: selected_tables and keyword_matches — internal schema detection details are not returned
   "follow_up_questions": ["string"] | null,
   "metadata": {
     "execution_time_ms": "float | null",
@@ -508,8 +504,8 @@ Content-Type: application/json
 
 **Top-Level Fields:**
 
-- **status**: `"success"` or `"error"`
-- **sql**: The generated SQL query string (may be null if generation failed)
+- **status**: `true` or `false` — boolean indicating success or failure
+- **sql**: (removed) The generated SQL is no longer returned by the API
 - **validation_passed**: Whether the SQL passed security validation
 - **data**: Object containing query results (null if error)
 - **error**: Error message if status is "error"
@@ -526,9 +522,8 @@ Content-Type: application/json
   - For JSON: Array of row objects
   - For CSV: String with CSV data
   - For table: Formatted text table
-- **sql**: The SQL query that generated these results
+
 - **row_count**: Number of rows returned
-- **execution_time_ms**: Time taken to execute the query (milliseconds)
 - **csv**: Complete results in CSV format
 - **raw_json**: Complete results in JSON format
 - **describe**: Pandas `.describe()` statistics per column
@@ -538,8 +533,7 @@ Content-Type: application/json
 
 ```json
 {
-  "status": "success",
-  "sql": "SELECT TOP 5 CustomerID, CustomerName, SUM(OrderTotal) as TotalValue FROM Orders WHERE OrderDate >= DATEADD(day, -30, GETDATE()) GROUP BY CustomerID, CustomerName ORDER BY TotalValue DESC",
+  "status": true,
   "validation_passed": true,
   "data": {
     "results": [
@@ -554,9 +548,7 @@ Content-Type: application/json
         "TotalValue": 98450.25
       }
     ],
-    "sql": "SELECT TOP 5...",
     "row_count": 5,
-    "execution_time_ms": 245.67,
     "csv": "CustomerID,CustomerName,TotalValue\n1001,Acme Corp,125000.50\n...",
     "raw_json": "[{\"CustomerID\":1001,...}]",
     "describe": {
@@ -571,8 +563,7 @@ Content-Type: application/json
     "describe_text": "TotalValue: mean=87500.30, min=45000.00, max=125000.50"
   },
   "error": null,
-  "selected_tables": ["Orders", "Customers"],
-  "keyword_matches": null,
+  # Removed: selected_tables and keyword_matches (internal details)
   "follow_up_questions": [
     "Would you like to see the breakdown by product category?",
     "Should I compare this to the previous 30-day period?",
@@ -592,13 +583,11 @@ Content-Type: application/json
 
 ```json
 {
-  "status": "error",
-  "sql": "SELECT * FROM NonExistentTable",
+  "status": false,
   "validation_passed": true,
   "data": null,
   "error": "Table 'NonExistentTable' does not exist in the database schema",
-  "selected_tables": null,
-  "keyword_matches": null,
+  # Removed: selected_tables and keyword_matches
   "follow_up_questions": null,
   "metadata": {
     "execution_time_ms": 123.45,

@@ -9,11 +9,15 @@ from uuid import uuid4
 from langgraph.store.base import SearchItem
 
 from app.utils.logger import setup_logging
+
 from db.langchain_memory import get_store
 
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="INFO")
 
-_store = get_store()
+
+def _get_store():
+    """Return the store instance lazily; avoids initializing Postgres at import time."""
+    return get_store()
 
 QUERY_NAMESPACE = "queries"
 SUMMARY_NAMESPACE = "conversation_summary"
@@ -31,7 +35,7 @@ def _summary_namespace(user_id: str, session_id: str, db_flag: str) -> tuple[str
 def _iterate_namespace(namespace: tuple[str, ...], limit: int = 100) -> Iterable[SearchItem]:
     offset = 0
     while True:
-        page = _store.search(namespace, limit=limit, offset=offset, query="")
+        page = _get_store().search(namespace, limit=limit, offset=offset, query="")
         if not page:
             break
         for item in page:
@@ -73,7 +77,7 @@ def store_query_context(
         entry["tables_used"],
         entry["follow_up_questions"],
     )
-    _store.put(namespace, key, entry)
+    _get_store().put(namespace, key, entry)
     logger.info("Stored query context for %s/%s (key=%s)", user_id, session_id, key)
     return key
 
@@ -92,7 +96,7 @@ def get_query_history(
         limit,
     )
     try:
-        items = _store.search(namespace, limit=limit, query="")
+        items = _get_store().search(namespace, limit=limit, query="")
     except Exception as exc:
         logger.error("Failed to retrieve query history: %s", exc)
         return []
@@ -164,7 +168,7 @@ def update_or_create_session_summary(
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     namespace = _summary_namespace(user_id, session_id, db_flag)
-    _store.put(namespace, SUMMARY_KEY, entry)
+    _get_store().put(namespace, SUMMARY_KEY, entry)
     logger.debug("Updated conversation summary for %s/%s", user_id, session_id)
 
 
@@ -176,7 +180,7 @@ def get_session_summary(
     """Retrieve the persisted summary metadata."""
     namespace = _summary_namespace(user_id, session_id, db_flag)
     try:
-        item = _store.get(namespace, SUMMARY_KEY)
+        item = _get_store().get(namespace, SUMMARY_KEY)
     except Exception as exc:
         logger.error("Failed to read session summary: %s", exc)
         item = None
@@ -198,8 +202,8 @@ def clear_conversation_history(user_id: str, session_id: str, db_flag: str) -> N
     query_namespace = _query_namespace(user_id, session_id, db_flag)
     summary_namespace = _summary_namespace(user_id, session_id, db_flag)
     for item in _iterate_namespace(query_namespace):
-        _store.put(query_namespace, item.key, None)
-    _store.put(summary_namespace, SUMMARY_KEY, None)
+        _get_store().put(query_namespace, item.key, None)
+    _get_store().put(summary_namespace, SUMMARY_KEY, None)
     logger.info("Cleared conversation history for %s/%s", user_id, session_id)
 
 

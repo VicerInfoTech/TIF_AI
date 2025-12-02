@@ -156,7 +156,7 @@
 
     const payload = {
       query: q,
-      db_flag: dbFlag.value || 'avamed_db',
+      db_flag: dbFlag.value || 'your_db_flag',
       output_format: currentFormat === 'table' ? 'csv' : currentFormat,
       user_id: userId.value || undefined,
       session_id: sessionId.value || undefined,

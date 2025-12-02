@@ -12,7 +12,7 @@ from langchain_postgres import PGVector
 
 from app.utils.logger import setup_logging
 
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="DEBUG")
 
 DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL_NAME", "jinaai/jina-embeddings-v3")
 

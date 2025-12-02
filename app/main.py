@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # pylint: disable=duplicate-code
 import re
+import os
 from datetime import datetime
 from os import getenv
 from pathlib import Path
@@ -14,6 +15,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 
 from app.models import (
     QueryRequest,
@@ -40,10 +42,17 @@ from app.agent.chain import (
     parse_structured_response,
     summarize_query_results,
 )
+from typing import Tuple
 from app.user_db_config_loader import get_user_database_settings, PROJECT_ROOT
 from db.model import DatabaseConfig
-from db.database_manager import create_metadata_tables, get_project_db_connection_string, get_session
-from sqlalchemy.exc import SQLAlchemyError
+from db.database_manager import (
+    create_metadata_tables,
+    get_project_db_connection_string,
+    get_project_db_session,
+    get_session,
+)
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.core import query_executor, result_formatter, sql_validator
 from app.schema_pipeline import SchemaPipelineOrchestrator
 from app.schema_pipeline.embedding_pipeline import (
@@ -51,17 +60,16 @@ from app.schema_pipeline.embedding_pipeline import (
     SchemaEmbeddingSettings,
 )
 from app.utils.logger import setup_logging
-from db.database_manager import get_session
-from db.model import DatabaseConfig
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from db.conversation_memory import (
     store_query_context,
+    get_query_history,
     get_session_summary,
     update_or_create_session_summary,
 )
+from app.agent.tools import get_tool_call_counts
 
 # Initialize logging
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="INFO")
 
 # Create FastAPI app
 app = FastAPI(
@@ -101,6 +109,120 @@ app.add_middleware(
 
 
 # Models moved to `app.models` for reusability and readability
+
+def _short_provider_error(exc: Exception) -> tuple[str, int | str]:
+    """Return a short, single-line error message and optional code for provider exceptions.
+
+    Returns (message, code_or_type) where message is a short string and code_or_type is
+    either an integer HTTP-like status code or provider-specific error type.
+    """
+    if exc is None:
+        return ("Unknown provider error", 502)
+    # Prefer structured provider response message if available
+    try:
+        if hasattr(exc, "response") and hasattr(exc.response, "json"):
+            err_json = exc.response.json()
+            if isinstance(err_json, dict):
+                # Handle common "error" nesting
+                msg = err_json.get("error", {}).get("message") or err_json.get("message")
+                err_type = err_json.get("error", {}).get("type") or err_json.get("type")
+                if msg:
+                    return (msg, err_type or getattr(exc, "status_code", 502))
+    except Exception:
+        pass
+    class_name = exc.__class__.__name__
+    short_msg = str(exc).splitlines()[0]
+    return (f"{class_name}: {short_msg}", getattr(exc, "status_code", 502))
+
+def _invoke_providers(
+    providers: List[str],
+    request: QueryRequest,
+    collection_name: str,
+) -> Tuple[Dict[str, Any] | None, str | None, List[str], Exception | None]:
+    """Try providers in order and return (agent_output, successful_provider, selected_tables, last_error).
+
+    The function maintains the same behavior: fall back to the next provider on error, log short messages
+    at ERROR/WARNING and debug tracebacks only.
+    """
+    agent_output: Dict[str, Any] | None = None
+    last_error: Exception | None = None
+    successful_provider: str | None = None
+    selected_tables: List[str] = []
+
+    for provider_idx, provider in enumerate(providers):
+        try:
+            if request.user_id and request.session_id:
+                agent = get_cached_agent_with_context(
+                    provider,
+                    request.db_flag,
+                    user_id=request.user_id,
+                    session_id=request.session_id,
+                )
+                logger.debug(
+                    "Using context-aware agent for user=%s, session=%s",
+                    request.user_id,
+                    request.session_id,
+                )
+            else:
+                agent = get_cached_agent(provider, request.db_flag)
+                logger.debug("Using stateless agent (no user/session context)")
+
+            with agent_context(request.db_flag, collection_name, user_id=request.user_id, session_id=request.session_id):
+                agent_output = agent.invoke({"messages": [{"role": "user", "content": request.query}]})
+                selected_tables = get_collected_tables()
+            logger.info("Generated SQL using provider=%s", provider)
+            try:
+                counts = get_tool_call_counts()
+                schema_count = counts.get("get_database_schema", 0)
+                logger.info("Tool usage counts for this run: get_database_schema=%s", schema_count)
+            except Exception:
+                logger.debug("Failed to obtain tool call counts for logging", exc_info=True)
+            successful_provider = provider
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            error_str = str(exc).lower()
+            is_rate_limit = "429" in error_str or ("rate" in error_str and "limit" in error_str)
+            is_provider_error = "provider returned error" in error_str
+            short_msg, err_code = _short_provider_error(exc)
+            if is_rate_limit or is_provider_error:
+                logger.warning(
+                    "Provider %s hit rate limit or temporary error (attempt %d/%d): %s",
+                    provider,
+                    provider_idx + 1,
+                    len(providers),
+                    short_msg,
+                )
+            else:
+                logger.error("Provider %s failed during SQL generation: %s", provider, short_msg)
+                logger.debug("Full provider exception:", exc_info=True)
+            if provider_idx < len(providers) - 1:
+                logger.info("Falling back to next provider: %s", providers[provider_idx + 1])
+                continue
+    return agent_output, successful_provider, selected_tables, last_error
+
+
+def _build_provider_error_response(last_error: Exception | None) -> QueryResponse:
+    """Return a minimal QueryResponse for provider failures with one-line reason."""
+    error_code = getattr(last_error, "status_code", 502)
+    error_msg = str(last_error) if last_error else "All LLM providers failed"
+    if hasattr(last_error, "response") and hasattr(last_error.response, "json"):
+        try:
+            err_json = last_error.response.json()
+            error_msg = err_json.get("error", {}).get("message", error_msg)
+            error_code = err_json.get("error", {}).get("type", error_code)
+        except Exception:
+            pass
+    return QueryResponse(
+        status=False,
+        validation_passed=False,
+        data=None,
+        error=f"Provider failed: {error_msg}",
+        follow_up_questions=None,
+        metadata=ExecutionMetadata(execution_time_ms=None, total_rows=None, retry_count=0),
+        # natural_summary=None,
+        raw_sql=None,
+    )
 
 def _sanitize_sql(sql_text: str) -> str:
     """Remove formatting fences and whitespace from the agent's SQL output."""
@@ -177,7 +299,9 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         request: QueryRequest with query, db_flag, and output_format
 
     Returns:
-        QueryResponse with status, SQL, validation result, and formatted data
+        QueryResponse with boolean `status` (True for success, False for failure),
+        validation result, and formatted data. Note: generated SQL and internal
+        schema selection details are not returned in the API response.
 
     Raises:
         HTTPException: If execution fails or database is unavailable
@@ -196,7 +320,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         )
 
         try:
-            db_settings = get_user_database_settings(request.db_flag)
+            db_settings = await get_user_database_settings(request.db_flag)
         except KeyError as exc:  # pragma: no cover - handled explicitly
             logger.error("Configuration error loading db_flag=%s: %s", request.db_flag, str(exc))
             raise HTTPException(
@@ -206,85 +330,19 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         
         db_config = db_settings.model_dump()
         collection_name = default_collection_name(request.db_flag)
+        logger.info("Using collection name: %s", collection_name)
 
         providers = get_available_providers()
 
         logger.debug("Provider order determined by environment: %s", providers)
         
-        agent_output: Dict[str, Any] | None = None
-        selected_tables: List[str] = []
-        last_error: Exception | None = None
-        successful_provider: str | None = None
-        follow_up_questions: List[str] | None = None
-
-        # Use context-aware agent if user_id and session_id are provided
-        for provider_idx, provider in enumerate(providers):
-            try:
-                if request.user_id and request.session_id:
-                    # Use conversation-aware agent
-                    agent = get_cached_agent_with_context(
-                        provider,
-                        request.db_flag,
-                        user_id=request.user_id,
-                        session_id=request.session_id,
-                    )
-                    logger.debug(f"Using context-aware agent for user={request.user_id}, session={request.session_id}")
-                else:
-                    # Use stateless agent (backward compatible)
-                    agent = get_cached_agent(provider, request.db_flag)
-                    logger.debug("Using stateless agent (no user/session context)")
-
-                with agent_context(
-                    request.db_flag,
-                    collection_name,
-                    user_id=request.user_id,
-                    session_id=request.session_id,
-                ):
-                    agent_output = agent.invoke(
-                        {
-                            "messages": [
-                                {
-                                    "role": "user",
-                                    "content": request.query,
-                                }
-                            ]
-                        }
-                    )
-                    selected_tables = get_collected_tables()
-                logger.info("Generated SQL using provider=%s", provider)
-                successful_provider = provider
-                break
-            except Exception as exc:  # noqa: BLE001
-                last_error = exc
-                error_str = str(exc).lower()
-                
-                # Detect rate limit or provider errors
-                is_rate_limit = "429" in error_str or "rate" in error_str and "limit" in error_str
-                is_provider_error = "provider returned error" in error_str
-                
-                if is_rate_limit or is_provider_error:
-                    logger.warning(
-                        "Provider %s hit rate limit or temporary error (attempt %d/%d). Trying next provider.",
-                        provider,
-                        provider_idx + 1,
-                        len(providers),
-                    )
-                else:
-                    logger.exception("Provider %s failed during SQL generation", provider)
-                
-                # Continue to next provider if available
-                if provider_idx < len(providers) - 1:
-                    logger.info("Falling back to next provider: %s", providers[provider_idx + 1])
-                    continue
+        agent_output, successful_provider, selected_tables, last_error = _invoke_providers(
+            providers, request, collection_name
+        )
 
         if agent_output is None:
-            detail = (
-                f"LLM providers unavailable: {last_error}" if last_error else "All LLM providers failed"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=detail,
-            )
+            # Graceful error response: short code and reason
+            return _build_provider_error_response(last_error)
 
         structured_llm_response = parse_structured_response(agent_output)
         contextual_insights: str | None = None
@@ -304,48 +362,43 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                 detail="Agent returned empty SQL output",
             )
 
+        # First validate that generated SQL is syntactically safe (read-only)
         validation_result = sql_validator.validate_sql(sql_generated)
         validation_ok = validation_result.get("valid", False)
         logger.info("Validated SQL: %s (valid=%s, reason=%s)", sql_generated, validation_ok, validation_result.get("reason"))
         if not validation_ok:
             logger.warning("SQL validation failed: %s", validation_result.get("reason"))
             return QueryResponse(
-                status="error",
-                sql=sql_generated,
+                status=False,
                 validation_passed=False,
                 data=None,
                 error=validation_result.get("reason"),
-                selected_tables=selected_tables or None,
-                keyword_matches=None,
                 follow_up_questions=follow_up_questions,
                 metadata=ExecutionMetadata(
                     execution_time_ms=None,
                     total_rows=None,
                     retry_count=0,
                 ),
-                token_usage=None,
+                raw_sql=sql_generated,
             )
 
         exec_start = perf_counter()
-        execution = query_executor.execute_query(sql_generated, db_config)
+        execution = await query_executor.execute_query_async(sql_generated, db_config)
         elapsed_ms = (perf_counter() - exec_start) * 1000
         if not execution.get("success"):
             logger.error("SQL execution failed: %s", execution.get("error"))
             return QueryResponse(
-                status="error",
-                sql=sql_generated,
+                status=False,
                 validation_passed=True,
                 data=None,
                 error=execution.get("error"),
-                selected_tables=selected_tables or None,
-                keyword_matches=None,
                 follow_up_questions=follow_up_questions,
                 metadata=ExecutionMetadata(
                     execution_time_ms=elapsed_ms,
                     total_rows=None,
                     retry_count=0,
                 ),
-                token_usage=None,
+                raw_sql=sql_generated,
             )
 
         dataframe = execution.get("dataframe")
@@ -356,23 +409,20 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             execution_time_ms=elapsed_ms,
         )
 
-        if formatted.get("status") != "success":
+        if not formatted.get("status"):
             logger.error("Result formatting failed: %s", formatted.get("message"))
             return QueryResponse(
-                status="error",
-                sql=sql_generated,
+                status=False,
                 validation_passed=True,
                 data=None,
                 error=formatted.get("message", "Failed to format results"),
-                selected_tables=selected_tables or None,
-                keyword_matches=None,
                 follow_up_questions=follow_up_questions,
                 metadata=ExecutionMetadata(
                     execution_time_ms=elapsed_ms,
                     total_rows=None,
                     retry_count=0,
                 ),
-                token_usage=None,
+                raw_sql=sql_generated,
             )
 
         total_rows_raw = formatted.get("data", {}).get("row_count") if formatted.get("data") else None
@@ -394,11 +444,11 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         )
 
         result_data = formatted.get("data") or {}
-        natural_summary = None
+        # natural_summary = None
         if successful_provider:
             describe_text = result_data.get("describe_text", "")
             raw_json = result_data.get("raw_json", "")
-            natural_summary = summarize_query_results(successful_provider, describe_text, raw_json)
+            # natural_summary = summarize_query_results(successful_provider, describe_text, raw_json)
 
         # Store query context in conversation history if user_id and session_id provided
         if request.user_id and request.session_id:
@@ -420,18 +470,35 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                     session_id=request.session_id,
                     db_flag=request.db_flag,
                 )
-                session_summary = get_session_summary(
-                    user_id=request.user_id,
-                    session_id=request.session_id,
-                    db_flag=request.db_flag,
+                # Log only the latest query (avoid verbose full session dump)
+                latest_history = get_query_history(
+                    request.user_id,
+                    request.session_id,
+                    request.db_flag,
+                    limit=1,
                 )
-                if session_summary:
+                if latest_history:
+                    latest = latest_history[0]
                     logger.debug(
-                        "Session summary updated for user=%s, session=%s: %s",
+                        "Session summary updated for user=%s, session=%s: latest_query=%s sql=%s",
                         request.user_id,
                         request.session_id,
-                        session_summary.get("summary"),
+                        latest.get("query_text"),
+                        latest.get("sql_generated"),
                     )
+                else:
+                    session_summary = get_session_summary(
+                        user_id=request.user_id,
+                        session_id=request.session_id,
+                        db_flag=request.db_flag,
+                    )
+                    if session_summary:
+                        logger.debug(
+                            "Session summary updated for user=%s, session=%s: total_queries=%s",
+                            request.user_id,
+                            request.session_id,
+                            session_summary.get("total_queries"),
+                        )
                 logger.debug(f"Stored query context for user={request.user_id}, session={request.session_id}")
             except Exception as exc:
                 logger.warning(f"Failed to store conversation history: {exc}")
@@ -443,21 +510,18 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             )
 
         return QueryResponse(
-            status="success",
-            sql=sql_generated,
+            status=True,
             validation_passed=True,
             data=formatted.get("data"),
             error=None,
-            selected_tables=selected_tables or None,
-            keyword_matches=None,
             follow_up_questions=follow_up_questions,
             metadata=ExecutionMetadata(
                 execution_time_ms=elapsed_ms,
                 total_rows=total_rows,
                 retry_count=0,
             ),
-            natural_summary=natural_summary,
-            token_usage=None,
+            # natural_summary=natural_summary,
+            raw_sql=sql_generated,
         )
 
     except ValueError as e:
@@ -531,8 +595,8 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
 
     try:
         project_connection = get_project_db_connection_string()
-        create_metadata_tables(project_connection)
-        db_row = _fetch_or_create_database_config(request, project_connection)
+        await create_metadata_tables(project_connection)
+        db_row = await _fetch_or_create_database_config(request, project_connection)
     except SQLAlchemyError as err:
         logger.error("DatabaseConfig check/insert failed: %s", err)
         raise HTTPException(
@@ -577,8 +641,10 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
 
     # Now run the pipeline as before
     try:
+        db_settings = await get_user_database_settings(request.db_flag)
         orchestrator = SchemaPipelineOrchestrator(
             request.db_flag,
+            settings=db_settings,
             include_schemas=request.include_schemas,
             exclude_schemas=request.exclude_schemas,
             run_documentation=request.run_documentation,
@@ -651,7 +717,7 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
                 message="Embedding stage was skipped",
             )
 
-            _mark_schema_extracted(request.db_flag)
+            await _mark_schema_extracted(request.db_flag)
 
         report = _build_pipeline_report(extraction_summary, documentation_stage, embeddings_stage)
         return SchemaPipelineResponse(
@@ -671,10 +737,46 @@ async def enroll_database(request: SchemaPipelineRequest) -> SchemaPipelineRespo
         ) from error
 
 
-def _fetch_or_create_database_config(request: SchemaPipelineRequest, project_connection: str) -> DatabaseConfig:
+async def _fetch_or_create_database_config(request: SchemaPipelineRequest, project_connection: str) -> DatabaseConfig:
+    try:
+        async with get_project_db_session(project_connection) as session:
+            result = await session.execute(select(DatabaseConfig).filter_by(db_flag=request.db_flag))
+            db_row = result.scalar_one_or_none()
+            if db_row:
+                return db_row
+
+            db_row = DatabaseConfig(
+                db_flag=request.db_flag,
+                db_type=request.db_type,
+                connection_string=request.connection_string,
+                description=request.description,
+                intro_template=request.intro_template,
+                exclude_column_matches=request.exclude_column_matches,
+                # Set defaults internally for removed fields
+                max_rows=10000,
+                query_timeout=30,
+            )
+            session.add(db_row)
+            try:
+                await session.commit()
+                await session.refresh(db_row)
+                logger.info("Inserted new DatabaseConfig for db_flag=%s", request.db_flag)
+            except IntegrityError:
+                await session.rollback()
+                fallback = await session.execute(select(DatabaseConfig).filter_by(db_flag=request.db_flag))
+                db_row = fallback.scalar_one()
+            return db_row
+    except SQLAlchemyError as exc:
+        logger.warning("Project DB async operation failed (%s). Falling back to sync path.", type(exc).__name__)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, _fetch_or_create_database_config_sync, request, project_connection)
+
+
+def _fetch_or_create_database_config_sync(request: SchemaPipelineRequest, project_connection: str) -> DatabaseConfig:
     session = get_session(project_connection)
     try:
-        db_row = session.query(DatabaseConfig).filter_by(db_flag=request.db_flag).first()
+        result = session.query(DatabaseConfig).filter_by(db_flag=request.db_flag).first()
+        db_row = result
         if db_row:
             return db_row
 
@@ -697,15 +799,30 @@ def _fetch_or_create_database_config(request: SchemaPipelineRequest, project_con
         except IntegrityError:
             session.rollback()
             db_row = session.query(DatabaseConfig).filter_by(db_flag=request.db_flag).first()
-            if not db_row:
-                raise
         return db_row
     finally:
         session.close()
 
 
-def _mark_schema_extracted(db_flag: str) -> None:
-    session = get_session(get_project_db_connection_string())
+async def _mark_schema_extracted(db_flag: str) -> None:
+    project_connection = get_project_db_connection_string()
+    try:
+        async with get_project_db_session(project_connection) as session:
+            result = await session.execute(select(DatabaseConfig).filter_by(db_flag=db_flag))
+            db_row = result.scalar_one_or_none()
+            if not db_row:
+                return
+            db_row.schema_extracted = True
+            db_row.schema_extraction_date = datetime.utcnow()
+            await session.commit()
+    except SQLAlchemyError as exc:
+        logger.warning("Project DB async mark_schema_extracted failed (%s). Falling back to sync path.", type(exc).__name__)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _mark_schema_extracted_sync, db_flag, project_connection)
+
+
+def _mark_schema_extracted_sync(db_flag: str, project_connection: str) -> None:
+    session = get_session(project_connection)
     try:
         db_row = session.query(DatabaseConfig).filter_by(db_flag=db_flag).first()
         if not db_row:
@@ -715,6 +832,7 @@ def _mark_schema_extracted(db_flag: str) -> None:
         session.commit()
     finally:
         session.close()
+
 
 
 def _build_pipeline_report(
@@ -763,3 +881,55 @@ if __name__ == "__main__":
         reload=False,
         log_level="info",
     )
+
+
+@app.on_event("startup")
+async def warm_postgres_in_background():
+    """Warm up the LangGraph Postgres connections in background to avoid
+    a long first-request delay while keeping the server startup fast.
+    """
+    try:
+        # Import lazily so we don't force initialization at module import time
+        from db.langchain_memory import get_store, get_checkpointer
+        do_warm = os.getenv("WARM_LANGGRAPH", "true").lower() in ("1", "true", "yes")
+        if not do_warm:
+            logger.info("LangGraph warm-up disabled via WARM_LANGGRAPH env var")
+            return
+
+        async def _warm():
+            loop = asyncio.get_event_loop()
+            # Run potentially blocking initialization in threadpool to avoid blocking the event loop
+            await loop.run_in_executor(None, lambda: get_store())
+            await loop.run_in_executor(None, lambda: get_checkpointer())
+        # Schedule the warming task, do not await to avoid blocking startup
+        asyncio.create_task(_warm())
+        logger.info("Scheduled background warm-up for LangGraph Postgres resources")
+    except Exception as exc:
+        logger.warning("Failed to schedule LangGraph warm-up: %s", exc)
+
+
+@app.on_event("startup")
+async def warm_project_db_in_background():
+    """Warm up the project DB (create metadata tables) in the background.
+
+    This avoids slow startup due to metadata table creation while ensuring
+    the tables are created before clients attempt write operations.
+    """
+    try:
+        do_warm = os.getenv("WARM_PROJECT_DB", "true").lower() in ("1", "true", "yes")
+        if not do_warm:
+            logger.info("Project DB warm-up disabled via WARM_PROJECT_DB env var")
+            return
+        project_connection = get_project_db_connection_string()
+
+        async def _warm():
+            try:
+                await create_metadata_tables(project_connection)
+                logger.info("Warm-up: project metadata tables created or verified")
+            except Exception as exc:  # pragma: no cover - best-effort background warming
+                logger.warning("Project DB warm-up failed: %s", exc)
+
+        asyncio.create_task(_warm())
+        logger.info("Scheduled background warm-up for project metadata DB")
+    except Exception as exc:
+        logger.warning("Failed to schedule project DB warm-up: %s", exc)

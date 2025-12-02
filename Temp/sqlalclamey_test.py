@@ -10,7 +10,7 @@ from sqlalchemy.engine import Engine, Inspector
 from app.models import RawMetadata
 from app.utils.logger import setup_logging
 
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="DEBUG")
 
 
 class SQLServerMetadataExtractor:

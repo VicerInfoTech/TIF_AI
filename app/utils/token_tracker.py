@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 
 from app.utils.logger import setup_logging
 
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="INFO")
 
 
 @dataclass

@@ -11,7 +11,7 @@ from typing import Any, DefaultDict, Dict, Iterable, List, Tuple
 from app.models import DatabaseSchemaArtifacts, RawMetadata
 from app.utils.logger import setup_logging
 
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="INFO")
 
 
 from app.models import BuilderSettings

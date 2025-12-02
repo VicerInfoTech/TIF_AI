@@ -15,7 +15,7 @@ from app.schema_pipeline.structured_docs import yaml_to_structured_sections
 from app.utils.logger import setup_logging
 import yaml
 
-logger = setup_logging(__name__)
+logger = setup_logging(__name__, level="DEBUG")
 
 
 from app.models import SchemaEmbeddingSettings, SchemaEmbeddingResult

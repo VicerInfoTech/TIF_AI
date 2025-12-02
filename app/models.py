@@ -223,35 +223,31 @@ class QueryResultData(BaseModel):
     """Structured metadata returned for a successful query."""
 
     results: Any = Field(..., description="Primary result payload in the requested format")
-    sql: str = Field(..., description="SQL that generated the payload")
     row_count: int = Field(..., description="Total number of rows returned")
-    execution_time_ms: Optional[float] = Field(None, description="Execution time in milliseconds")
+        # execution_time_ms intentionally removed from data envelope; use `metadata.execution_time_ms` instead
     csv: str = Field(..., description="Full result set serialized as CSV")
     raw_json: str = Field(..., description="Full result set serialized as JSON")
-    describe: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="Describe() summary per column")
-    describe_text: str = Field("", description="Textual `describe()` output")
+    # describe and describe_text removed
 
 
 class QueryResponse(BaseModel):
     """Response model for query execution."""
-
-    status: str = Field(..., description="Response status (success or error)")
-    sql: Optional[str] = Field(None, description="Generated SQL query")
+    status: bool = Field(..., description="True if successful; False otherwise")
     validation_passed: Optional[bool] = Field(None, description="Whether SQL passed validation")
     data: Optional[QueryResultData] = Field(None, description="Query results envelope")
     error: Optional[str] = Field(None, description="Error message if status is error")
-    selected_tables: Optional[List[str]] = Field(None, description="Tables selected for this query")
-    keyword_matches: Optional[List[str]] = Field(None, description="Tokens used for schema selection")
+    # Removed: selected_tables and keyword_matches fields to avoid exposing internal schema selection details
     follow_up_questions: Optional[List[str]] = Field(
         None,
         description="Additional follow-up questions the agent would ask to clarify intent",
     )
     metadata: ExecutionMetadata = Field(default_factory=ExecutionMetadata)
-    token_usage: Optional[Dict[str, Any]] = Field(None, description="Token usage metrics")
-    natural_summary: Optional[str] = Field(
-        None,
-        description="LLM-generated natural language summary of the returned dataset",
-    )
+    # token_usage removed
+    raw_sql: Optional[str] = Field(None, description="Raw SQL query executed")
+    # natural_summary: Optional[str] = Field(
+    #     None,
+    #     description="LLM-generated natural language summary of the returned dataset",
+    # )
 
 
 class SchemaEmbeddingRequest(BaseModel):
@@ -263,9 +259,9 @@ class SchemaEmbeddingRequest(BaseModel):
         description="Target database flag (artifacts live under database_schemas/<db_flag>/schema)",
     )
     collection_name: str = Field(
-        "avamed_db_docs",
+        "your_db_flag_docs",
         min_length=1,
-        description="Postgres PGVector collection name to persist embeddings",
+        description="Vector collection name to persist schema embeddings (pattern: your_db_flag_docs)",
     )
 
 
