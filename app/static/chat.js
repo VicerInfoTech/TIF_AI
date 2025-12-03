@@ -152,12 +152,13 @@
     appendMessage('user', q);
     nlquery.value = '';
 
-    const currentFormat = formatSelect.value || 'table';
+    const selectedFormat = formatSelect.value || 'json';
+    const outputFormat = selectedFormat === 'table' ? 'csv' : selectedFormat;
 
     const payload = {
       query: q,
       db_flag: dbFlag.value || 'your_db_flag',
-      output_format: currentFormat === 'table' ? 'csv' : currentFormat,
+      output_format: outputFormat,
       user_id: userId.value || undefined,
       session_id: sessionId.value || undefined,
     };
@@ -175,8 +176,9 @@
       const json = await resp.json();
 
       if (!resp.ok) {
-        const errorMsg = json.detail || resp.statusText;
-        appendMessage('agent', `❌ Error: ${errorMsg}`);
+        const errorMsg = json.error || json.detail || resp.statusText;
+        const errorCode = json.error_code ? ` (${json.error_code})` : '';
+        appendMessage('agent', `❌ Error${errorCode}: ${errorMsg}`);
         return;
       }
 
@@ -205,53 +207,29 @@
 
       appendHtmlMessage('agent', agentText);
 
-      const data = json.data || {};
+      const result = json.result || {};
       let dataHtml = '';
 
-      const rows = json.metadata?.total_rows ?? data.row_count ?? 'N/A';
+      const rows = result.row_count ?? 'N/A';
       const time = json.metadata?.execution_time_ms ? Math.round(json.metadata.execution_time_ms) : 'N/A';
       const metaHtml = `<div class="message-meta">📊 Rows: ${rows} | ⏱️ Time: ${time}ms</div>`;
 
-      if (currentFormat === 'table' || currentFormat === 'csv') {
-        if (data.csv) {
-          dataHtml = renderTable(data.csv);
-          dataHtml += createDownloadButton(data.csv, 'query_results.csv', 'text/csv', '📥 Download CSV');
-        } else if (data.raw_json) {
+      if (result.content) {
+        if (result.filetype === 'csv') {
+          dataHtml = renderTable(result.content);
+          dataHtml += createDownloadButton(result.content, 'query_results.csv', 'text/csv', '📥 Download CSV');
+        } else {
           try {
-            dataHtml = renderJSON(JSON.parse(data.raw_json));
-          } catch (e) {
-            dataHtml = renderJSON(data.raw_json);
-          }
-        }
-      } else if (currentFormat === 'json') {
-        if (data.raw_json) {
-          try {
-            const parsedJson = JSON.parse(data.raw_json);
+            const parsedJson = JSON.parse(result.content);
             dataHtml = renderJSON(parsedJson);
             dataHtml += createDownloadButton(JSON.stringify(parsedJson, null, 2), 'query_results.json', 'application/json', '📥 Download JSON');
           } catch (e) {
-            dataHtml = `<pre><code>${escapeHtml(data.raw_json)}</code></pre>`;
-            dataHtml += createDownloadButton(data.raw_json, 'query_results.json', 'application/json', '📥 Download JSON');
+            dataHtml = `<pre><code>${escapeHtml(result.content)}</code></pre>`;
+            dataHtml += createDownloadButton(result.content, 'query_results.json', 'application/json', '📥 Download JSON');
           }
-        } else if (data.csv) {
-          dataHtml = renderTable(data.csv);
-          dataHtml += createDownloadButton(data.csv, 'query_results.csv', 'text/csv', '📥 Download CSV');
         }
       } else {
-        if (data.csv) {
-          dataHtml = renderTable(data.csv);
-          dataHtml += createDownloadButton(data.csv, 'query_results.csv', 'text/csv', '📥 Download CSV');
-        } else if (data.raw_json) {
-          try {
-            const parsedJson = JSON.parse(data.raw_json);
-            dataHtml = renderJSON(parsedJson);
-            dataHtml += createDownloadButton(JSON.stringify(parsedJson, null, 2), 'query_results.json', 'application/json', '📥 Download JSON');
-          } catch (e) {
-            dataHtml = renderJSON(data.raw_json);
-          }
-        } else {
-          dataHtml = renderJSON(data || json);
-        }
+        dataHtml = '<div style="color:var(--text-muted)">No data returned.</div>';
       }
 
       if (dataHtml) {

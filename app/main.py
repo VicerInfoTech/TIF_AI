@@ -13,14 +13,16 @@ from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
+import uuid
 
 from app.models import (
     QueryRequest,
     QueryResponse,
     ExecutionMetadata,
+    ErrorCode,
     HealthResponse,
     SchemaEmbeddingRequest,
     SchemaEmbeddingResponse,
@@ -67,6 +69,8 @@ from db.conversation_memory import (
     update_or_create_session_summary,
 )
 from app.agent.tools import get_tool_call_counts
+from dotenv import load_dotenv
+load_dotenv()
 
 # Initialize logging
 logger = setup_logging(__name__, level="INFO")
@@ -134,10 +138,52 @@ def _short_provider_error(exc: Exception) -> tuple[str, int | str]:
     short_msg = str(exc).splitlines()[0]
     return (f"{class_name}: {short_msg}", getattr(exc, "status_code", 502))
 
+
+ERROR_STATUS_MAP: dict[ErrorCode, int] = {
+    ErrorCode.UNKNOWN_DATABASE: status.HTTP_400_BAD_REQUEST,
+    ErrorCode.INVALID_REQUEST: status.HTTP_400_BAD_REQUEST,
+    ErrorCode.PROVIDER_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
+    ErrorCode.SQL_VALIDATION_FAILED: status.HTTP_422_UNPROCESSABLE_ENTITY,
+    ErrorCode.QUERY_EXECUTION_FAILED: status.HTTP_500_INTERNAL_SERVER_ERROR,
+    ErrorCode.RESULT_FORMATTING_FAILED: status.HTTP_500_INTERNAL_SERVER_ERROR,
+    ErrorCode.INTERNAL_ERROR: status.HTTP_500_INTERNAL_SERVER_ERROR,
+}
+
+
+def _create_error_response(
+    *,
+    message: str,
+    error_code: ErrorCode,
+    request_id: str | None,
+    validation_passed: bool | None,
+    follow_up_questions: List[str] | None = None,
+    execution_time_ms: float | None = None,
+    retry_count: int = 0,
+    status_code: int | None = None,
+) -> JSONResponse:
+    """Serialize a standardized error payload with consistent envelope and status code."""
+
+    resolved_status = status_code or ERROR_STATUS_MAP.get(error_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+    payload = QueryResponse(
+        status=False,
+        validation_passed=validation_passed,
+        result=None,
+        error=message,
+        error_code=error_code,
+        follow_up_questions=follow_up_questions,
+        metadata=ExecutionMetadata(
+            execution_time_ms=execution_time_ms,
+            retry_count=retry_count,
+            request_id=request_id,
+        ),
+    ).model_dump()
+    return JSONResponse(status_code=resolved_status, content=payload)
+
 def _invoke_providers(
     providers: List[str],
     request: QueryRequest,
     collection_name: str,
+    request_id: str | None = None,
 ) -> Tuple[Dict[str, Any] | None, str | None, List[str], Exception | None]:
     """Try providers in order and return (agent_output, successful_provider, selected_tables, last_error).
 
@@ -195,33 +241,39 @@ def _invoke_providers(
                 )
             else:
                 logger.error("Provider %s failed during SQL generation: %s", provider, short_msg)
-                logger.debug("Full provider exception:", exc_info=True)
+                logger.debug("Full provider exception (request=%s): %s", request_id, str(exc))
             if provider_idx < len(providers) - 1:
-                logger.info("Falling back to next provider: %s", providers[provider_idx + 1])
+                logger.info("Falling back to next provider: %s (request=%s)", providers[provider_idx + 1], request_id)
                 continue
     return agent_output, successful_provider, selected_tables, last_error
 
 
-def _build_provider_error_response(last_error: Exception | None) -> QueryResponse:
-    """Return a minimal QueryResponse for provider failures with one-line reason."""
-    error_code = getattr(last_error, "status_code", 502)
-    error_msg = str(last_error) if last_error else "All LLM providers failed"
-    if hasattr(last_error, "response") and hasattr(last_error.response, "json"):
-        try:
-            err_json = last_error.response.json()
-            error_msg = err_json.get("error", {}).get("message", error_msg)
-            error_code = err_json.get("error", {}).get("type", error_code)
-        except Exception:
-            pass
-    return QueryResponse(
-        status=False,
+def _build_provider_error_response(last_error: Exception | None, request_id: str | None = None) -> JSONResponse:
+    """Return a standardized error response for provider failures."""
+
+    short_msg, provider_hint = _short_provider_error(last_error) if last_error else ("All LLM providers failed", 502)
+    message = f"LLM provider failed: {short_msg}"
+    if request_id:
+        message = f"{message} [ref:{request_id}]"
+
+    resolved_status = status.HTTP_503_SERVICE_UNAVAILABLE
+    if isinstance(provider_hint, int):
+        if provider_hint == 429:
+            resolved_status = status.HTTP_429_TOO_MANY_REQUESTS
+        elif 400 <= provider_hint < 600:
+            resolved_status = provider_hint
+
+    logger.error("Provider error (request=%s): %s", request_id, short_msg)
+    if last_error:
+        logger.debug("Full provider exception (request=%s): %s", request_id, str(last_error))
+
+    return _create_error_response(
+        message=message,
+        error_code=ErrorCode.PROVIDER_UNAVAILABLE,
+        request_id=request_id,
         validation_passed=False,
-        data=None,
-        error=f"Provider failed: {error_msg}",
         follow_up_questions=None,
-        metadata=ExecutionMetadata(execution_time_ms=None, total_rows=None, retry_count=0),
-        # natural_summary=None,
-        raw_sql=None,
+        status_code=resolved_status,
     )
 
 def _sanitize_sql(sql_text: str) -> str:
@@ -243,6 +295,24 @@ def _sanitize_sql(sql_text: str) -> str:
         cleaned = cleaned[select_match.start():]
 
     return cleaned.strip()
+
+
+def _mask_sql_for_logs(sql_text: str, max_len: int = 200) -> str:
+    """Return a masked/shortened version of SQL suitable for logs.
+
+    - Redacts string literals inside single or double quotes
+    - Truncates to max_len and appends '...[REDACTED]' if longer
+    """
+    if not sql_text:
+        return ""
+    # redact single/double quoted strings
+    masked = re.sub(r"'([^']*)'", "'<REDACTED>'", sql_text)
+    masked = re.sub(r'\"([^\"]*)\"', '"<REDACTED>"', masked)
+    # collapse whitespace
+    masked = re.sub(r"\s+", " ", masked).strip()
+    if len(masked) > max_len:
+        return masked[:max_len] + " ... [TRUNCATED]"
+    return masked
 
 
 def _extract_agent_output(agent_result: Any) -> str:
@@ -292,20 +362,13 @@ async def health_check():
 
 
 @app.post("/query", response_model=QueryResponse)
-async def execute_query(request: QueryRequest) -> QueryResponse:
-    """Execute a natural language SQL query.
+async def execute_query(request: QueryRequest) -> QueryResponse | JSONResponse:
+    """Execute a natural language SQL query and return structured results or errors."""
 
-    Args:
-        request: QueryRequest with query, db_flag, and output_format
+    request_id = uuid.uuid4().hex
+    follow_up_questions: List[str] | None = None
+    contextual_insights: str | None = None
 
-    Returns:
-        QueryResponse with boolean `status` (True for success, False for failure),
-        validation result, and formatted data. Note: generated SQL and internal
-        schema selection details are not returned in the API response.
-
-    Raises:
-        HTTPException: If execution fails or database is unavailable
-    """
     try:
         logger.info(
             "Received query request: query=%s, db_flag=%s, format=%s",
@@ -313,6 +376,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             request.db_flag,
             request.output_format,
         )
+        logger.debug("Request ID: %s", request_id)
         logger.debug(
             "Conversation identifiers user_id=%s session_id=%s",
             request.user_id,
@@ -323,82 +387,83 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
             db_settings = await get_user_database_settings(request.db_flag)
         except KeyError as exc:  # pragma: no cover - handled explicitly
             logger.error("Configuration error loading db_flag=%s: %s", request.db_flag, str(exc))
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unknown database: {str(exc)}",
-            ) from exc
-        
+            return _create_error_response(
+                message=f"Unknown database: {request.db_flag} [ref:{request_id}]",
+                error_code=ErrorCode.UNKNOWN_DATABASE,
+                request_id=request_id,
+                validation_passed=False,
+            )
+
         db_config = db_settings.model_dump()
         collection_name = default_collection_name(request.db_flag)
         logger.info("Using collection name: %s", collection_name)
 
         providers = get_available_providers()
-
         logger.debug("Provider order determined by environment: %s", providers)
-        
+
         agent_output, successful_provider, selected_tables, last_error = _invoke_providers(
-            providers, request, collection_name
+            providers,
+            request,
+            collection_name,
+            request_id=request_id,
         )
 
         if agent_output is None:
-            # Graceful error response: short code and reason
-            return _build_provider_error_response(last_error)
+            return _build_provider_error_response(last_error, request_id=request_id)
 
         structured_llm_response = parse_structured_response(agent_output)
-        contextual_insights: str | None = None
         if structured_llm_response:
             raw_output = structured_llm_response.sql_query
             contextual_insights = structured_llm_response.query_context
-            # Preserve empty list (do not coerce to None) for API clients that expect an array
             follow_up_questions = structured_llm_response.follow_up_questions
         else:
             raw_output = _extract_agent_output(agent_output)
+
         sql_generated = _sanitize_sql(raw_output)
-        logger.info("Generated SQL (raw): %s", sql_generated)
+        logger.info("Generated SQL (masked): %s", _mask_sql_for_logs(sql_generated))
         if not sql_generated:
             logger.error("Agent returned empty SQL output")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Agent returned empty SQL output",
+            return _create_error_response(
+                message=f"Agent returned empty SQL output [ref:{request_id}]",
+                error_code=ErrorCode.INTERNAL_ERROR,
+                request_id=request_id,
+                validation_passed=False,
             )
 
-        # First validate that generated SQL is syntactically safe (read-only)
         validation_result = sql_validator.validate_sql(sql_generated)
         validation_ok = validation_result.get("valid", False)
-        logger.info("Validated SQL: %s (valid=%s, reason=%s)", sql_generated, validation_ok, validation_result.get("reason"))
+        logger.info(
+            "Validated SQL (mask): %s (valid=%s, reason=%s, request=%s)",
+            _mask_sql_for_logs(sql_generated),
+            validation_ok,
+            validation_result.get("reason"),
+            request_id,
+        )
         if not validation_ok:
-            logger.warning("SQL validation failed: %s", validation_result.get("reason"))
-            return QueryResponse(
-                status=False,
+            client_err = f"{validation_result.get('reason')} [ref:{request_id}]"
+            logger.warning("SQL validation failed: %s", client_err)
+            return _create_error_response(
+                message=client_err,
+                error_code=ErrorCode.SQL_VALIDATION_FAILED,
+                request_id=request_id,
                 validation_passed=False,
-                data=None,
-                error=validation_result.get("reason"),
                 follow_up_questions=follow_up_questions,
-                metadata=ExecutionMetadata(
-                    execution_time_ms=None,
-                    total_rows=None,
-                    retry_count=0,
-                ),
-                raw_sql=sql_generated,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             )
 
         exec_start = perf_counter()
         execution = await query_executor.execute_query_async(sql_generated, db_config)
         elapsed_ms = (perf_counter() - exec_start) * 1000
         if not execution.get("success"):
-            logger.error("SQL execution failed: %s", execution.get("error"))
-            return QueryResponse(
-                status=False,
+            client_err = f"{execution.get('error')} [ref:{request_id}]"
+            logger.error("SQL execution failed: %s", client_err)
+            return _create_error_response(
+                message=client_err,
+                error_code=ErrorCode.QUERY_EXECUTION_FAILED,
+                request_id=request_id,
                 validation_passed=True,
-                data=None,
-                error=execution.get("error"),
                 follow_up_questions=follow_up_questions,
-                metadata=ExecutionMetadata(
-                    execution_time_ms=elapsed_ms,
-                    total_rows=None,
-                    retry_count=0,
-                ),
-                raw_sql=sql_generated,
+                execution_time_ms=elapsed_ms,
             )
 
         dataframe = execution.get("dataframe")
@@ -410,47 +475,37 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         )
 
         if not formatted.get("status"):
-            logger.error("Result formatting failed: %s", formatted.get("message"))
-            return QueryResponse(
-                status=False,
+            client_err = f"{formatted.get('message', 'Failed to format results')} [ref:{request_id}]"
+            logger.error("Result formatting failed: %s", client_err)
+            return _create_error_response(
+                message=client_err,
+                error_code=ErrorCode.RESULT_FORMATTING_FAILED,
+                request_id=request_id,
                 validation_passed=True,
-                data=None,
-                error=formatted.get("message", "Failed to format results"),
                 follow_up_questions=follow_up_questions,
-                metadata=ExecutionMetadata(
-                    execution_time_ms=elapsed_ms,
-                    total_rows=None,
-                    retry_count=0,
-                ),
-                raw_sql=sql_generated,
+                execution_time_ms=elapsed_ms,
             )
 
-        total_rows_raw = formatted.get("data", {}).get("row_count") if formatted.get("data") else None
-        total_rows: int | None = None
-        if total_rows_raw is not None:
+        result_payload = formatted.get("result") or {}
+        row_count_raw = result_payload.get("row_count")
+        row_count: int | None = None
+        if row_count_raw is not None:
             try:
-                # Handle floats, strings, numpy types, etc.
-                total_rows_int = int(float(total_rows_raw))
-                if total_rows_int >= 0:
-                    total_rows = total_rows_int
+                row_count = int(float(row_count_raw)) if float(row_count_raw) >= 0 else None
             except (TypeError, ValueError):
-                logger.debug("Unable to coerce row_count=%r (%s) to int", total_rows_raw, type(total_rows_raw))
-                total_rows = None
+                logger.debug(
+                    "Unable to coerce row_count=%r (%s) to int",
+                    row_count_raw,
+                    type(row_count_raw),
+                )
+                row_count = None
 
         logger.info(
             "Query execution completed: rows=%s elapsed_ms=%.1f",
-            total_rows,
+            row_count,
             elapsed_ms,
         )
 
-        result_data = formatted.get("data") or {}
-        # natural_summary = None
-        if successful_provider:
-            describe_text = result_data.get("describe_text", "")
-            raw_json = result_data.get("raw_json", "")
-            # natural_summary = summarize_query_results(successful_provider, describe_text, raw_json)
-
-        # Store query context in conversation history if user_id and session_id provided
         if request.user_id and request.session_id:
             try:
                 store_query_context(
@@ -464,13 +519,11 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                     contextual_insights=contextual_insights,
                     execution_time=elapsed_ms / 1000.0 if elapsed_ms else None,
                 )
-                # Update session summary with new context
                 update_or_create_session_summary(
                     user_id=request.user_id,
                     session_id=request.session_id,
                     db_flag=request.db_flag,
                 )
-                # Log only the latest query (avoid verbose full session dump)
                 latest_history = get_query_history(
                     request.user_id,
                     request.session_id,
@@ -484,7 +537,7 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                         request.user_id,
                         request.session_id,
                         latest.get("query_text"),
-                        latest.get("sql_generated"),
+                        _mask_sql_for_logs(latest.get("sql_generated") or ""),
                     )
                 else:
                     session_summary = get_session_summary(
@@ -499,9 +552,13 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
                             request.session_id,
                             session_summary.get("total_queries"),
                         )
-                logger.debug(f"Stored query context for user={request.user_id}, session={request.session_id}")
-            except Exception as exc:
-                logger.warning(f"Failed to store conversation history: {exc}")
+                logger.debug(
+                    "Stored query context for user=%s, session=%s",
+                    request.user_id,
+                    request.session_id,
+                )
+            except Exception as exc:  # pragma: no cover - persistence best effort
+                logger.warning("Failed to store conversation history: %s", exc)
         else:
             logger.debug(
                 "Skipping conversation persistence (missing identifiers) user_id=%s session_id=%s",
@@ -512,30 +569,38 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
         return QueryResponse(
             status=True,
             validation_passed=True,
-            data=formatted.get("data"),
+            result=result_payload,
             error=None,
+            error_code=None,
             follow_up_questions=follow_up_questions,
             metadata=ExecutionMetadata(
                 execution_time_ms=elapsed_ms,
-                total_rows=total_rows,
                 retry_count=0,
+                request_id=request_id,
             ),
-            # natural_summary=natural_summary,
-            raw_sql=sql_generated,
         )
 
-    except ValueError as e:
-        logger.error("Validation error: %s", str(e))
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid request: {str(e)}",
-        ) from e
-    except Exception as e:
-        logger.exception("Unexpected error during query execution: %s", str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}",
-        ) from e
+    except ValueError as exc:
+        logger.error("Validation error: %s", exc)
+        return _create_error_response(
+            message=f"Invalid request: {exc}",
+            error_code=ErrorCode.INVALID_REQUEST,
+            request_id=request_id,
+            validation_passed=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        short_err = (
+            query_executor._short_error_message(exc)  # type: ignore[attr-defined]
+            if hasattr(query_executor, "_short_error_message")
+            else str(exc)
+        )
+        logger.exception("Unexpected error during query execution: %s", short_err)
+        return _create_error_response(
+            message=f"Internal server error: {short_err}",
+            error_code=ErrorCode.INTERNAL_ERROR,
+            request_id=request_id,
+            validation_passed=False,
+        )
 
 
 @app.post("/schemas/embeddings", response_model=SchemaEmbeddingResponse)

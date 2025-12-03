@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Literal, DefaultDict
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from dataclasses import dataclass, field
+
+
+class ErrorCode(str, Enum):
+    """Standardized application error codes exposed to API clients."""
+
+    UNKNOWN_DATABASE = "unknown_database"
+    INVALID_REQUEST = "invalid_request"
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
+    SQL_VALIDATION_FAILED = "sql_validation_failed"
+    QUERY_EXECUTION_FAILED = "query_execution_failed"
+    RESULT_FORMATTING_FAILED = "result_formatting_failed"
+    INTERNAL_ERROR = "internal_error"
 
 
 
@@ -191,8 +204,8 @@ class QueryRequest(BaseModel):
     )
     output_format: str = Field(
         default="json",
-        description="Output format: json, csv, or table",
-        pattern="^(json|csv|table)$",
+        description="Output format: json or csv",
+        pattern="^(json|csv)$",
     )
     user_id: Optional[str] = Field(
         default=None,
@@ -208,11 +221,11 @@ class ExecutionMetadata(BaseModel):
     """Metadata about query execution."""
 
     execution_time_ms: Optional[float] = Field(None, description="Execution time in milliseconds")
-    total_rows: Optional[int] = Field(None, description="Total rows returned")
     retry_count: int = Field(0, description="Number of retries performed")
-    
-    @field_validator('execution_time_ms', mode='before')
-    def round_value(cls, v: any, info: ValidationInfo) -> float:
+    request_id: Optional[str] = Field(None, description="Unique request id for tracing/logging correlation")
+
+    @field_validator("execution_time_ms", mode="before")
+    def round_value(cls, v: Any, info: ValidationInfo) -> float:
         if isinstance(v, (float, int)):
             return round(v, 2)
         return v
@@ -220,22 +233,40 @@ class ExecutionMetadata(BaseModel):
 
 
 class QueryResultData(BaseModel):
-    """Structured metadata returned for a successful query."""
+    """Structured metadata returned for a successful query.
 
-    results: Any = Field(..., description="Primary result payload in the requested format")
+    Contains only the data in the requested format (json or csv),
+    along with row count metadata.
+    """
+
+    content: str = Field(..., description="Result payload in the requested format (json or csv string)")
     row_count: int = Field(..., description="Total number of rows returned")
-        # execution_time_ms intentionally removed from data envelope; use `metadata.execution_time_ms` instead
-    csv: str = Field(..., description="Full result set serialized as CSV")
-    raw_json: str = Field(..., description="Full result set serialized as JSON")
-    # describe and describe_text removed
+    filetype: str = Field(..., description="Format of the content field: 'json' or 'csv'")
+
+    @field_validator("row_count", mode="before")
+    def coerce_row_count_to_int(cls, v: Any) -> int:
+        """Ensure row_count is always an int, never float."""
+        if isinstance(v, float):
+            return int(v)
+        if isinstance(v, int):
+            return v
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return 0
 
 
 class QueryResponse(BaseModel):
     """Response model for query execution."""
+
     status: bool = Field(..., description="True if successful; False otherwise")
     validation_passed: Optional[bool] = Field(None, description="Whether SQL passed validation")
-    data: Optional[QueryResultData] = Field(None, description="Query results envelope")
+    result: Optional[QueryResultData] = Field(None, description="Query results envelope")
     error: Optional[str] = Field(None, description="Error message if status is error")
+    error_code: Optional[ErrorCode] = Field(
+        None,
+        description="Stable application-specific error code when status is False",
+    )
     # Removed: selected_tables and keyword_matches fields to avoid exposing internal schema selection details
     follow_up_questions: Optional[List[str]] = Field(
         None,
@@ -243,7 +274,7 @@ class QueryResponse(BaseModel):
     )
     metadata: ExecutionMetadata = Field(default_factory=ExecutionMetadata)
     # token_usage removed
-    raw_sql: Optional[str] = Field(None, description="Raw SQL query executed")
+    # raw_sql removed to avoid accidental exposure of SQL in API responses
     # natural_summary: Optional[str] = Field(
     #     None,
     #     description="LLM-generated natural language summary of the returned dataset",

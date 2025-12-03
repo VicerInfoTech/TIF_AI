@@ -29,32 +29,38 @@ def format_results(
 	output_format: str,
 	execution_time_ms: float | None = None,
 ) -> Dict[str, Any]:
-	"""Format query execution output for the API response."""
+	"""Format query execution output for the API response.
+	
+	Returns only the data in the requested format (json or csv).
+	Defaults to json if format is not recognized.
+	"""
 
 	if dataframe is None:
 		return {
 			"status": False,
-			"data": {},
+			"result": {},
 			"message": "No data returned",
 		}
 
-	if output_format == "table":
-		payload = dataframe.to_string(index=False)
-	elif output_format == "csv":
+	# Normalize output_format
+	if output_format not in ("json", "csv"):
+		output_format = "json"
+	
+	# Generate data in requested format
+	if output_format == "csv":
 		payload = dataframe.to_csv(index=False)
-	else:
-		payload = dataframe.to_dict(orient="records")
+	else:  # json
+		payload = dataframe.to_json(orient="records", date_format="iso")
 
-	csv_payload = dataframe.to_csv(index=False)
-	raw_json_payload = dataframe.to_json(orient="records", date_format="iso")
+	# Normalize format for response
+	response_format = "csv" if output_format == "csv" else "json"
 
 	return {
 		"status": True,
-		"data": {
-			"results": payload,
-			"row_count": len(dataframe.index),
-			"csv": csv_payload,
-			"raw_json": raw_json_payload,
+		"result": {
+			"content": payload,
+			"row_count": int(len(dataframe.index)),
+			"filetype": response_format,
 		},
 	}
 
