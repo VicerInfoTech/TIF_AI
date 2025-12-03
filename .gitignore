@@ -10,7 +10,7 @@ Log/
 
 
 *.yaml
-database_schemas/
+# database_schemas/
 doc/
 
 Temp/

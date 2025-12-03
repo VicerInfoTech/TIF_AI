@@ -1,0 +1,380 @@
+ 
+EndeavorCRM Database - AI Agent Instruction Manual
+ 
+Database: EndeavorCRM
+
+EndeavorCRM is a centralized Customer Relationship Management (CRM) database designed
+ to support sales operations, agent management, user authentication, internal communication, 
+ and role-based access control within an organization. It contains 
+ a single schema (dbo) with tables that collectively manage user accounts, agents, leads, 
+ deals, messaging, authentication, menus, and system security.
+ 
+1. CRITICAL BUSINESS LOGIC - DEAL COUNTING   MANDATORY
+ 
+
+BUSINESS RULE: "Deals" means APPLICANTS, not Deal table rows
+
+When users ask about:
+- "deals", "number of deals", "deal count", "how many deals"
+- "sales", "transactions", "closed deals"
+
+They mean: THE TOTAL NUMBER OF APPLICANTS (individuals covered)
+NOT: The number of Deal table records (which are containers/headers)
+
+EXPLANATION:
+- Deal table = Header/container records for insurance coverage applications
+- NoOfApplicants column = Number of individuals covered in that deal
+- Each applicant = 1 billable business "deal" for reporting purposes
+
+CORRECT SQL PATTERN (ALWAYS USE THIS):
+  SELECT SUM(NoOfApplicants) AS TotalDeals
+   FROM Deal
+   WHERE YEAR(CloseDate) = YEAR(GETDATE())
+
+INCORRECT SQL PATTERN (NEVER USE):
+  SELECT COUNT(*) AS TotalDeals
+   FROM Deal
+   WHERE YEAR(CloseDate) = YEAR(GETDATE())
+
+REAL-WORLD IMPACT:
+- Correct method: 1,116 business deals (accurate)
+- Incorrect method: 599 Deal records (~46% undercount)
+- Error magnitude: Underreports by 517 deals
+
+SPECIAL CASES:
+- Only use COUNT(*) if user explicitly asks for "Deal records" or "applications submitted"
+- Default assumption: user wants business deal count = SUM(NoOfApplicants)
+
+AGENT PERFORMANCE METRICS:
+When counting deals by agent, use this pattern:
+SELECT
+    CONCAT(a.FirstName, ' ', a.LastName) AS AgentName,
+    SUM(d.NoOfApplicants) AS TotalDeals,
+    COUNT(DISTINCT d.DealId) AS DealRecordsProcessed
+FROM Deal d
+JOIN AgentMaster a ON d.AgentId = a.AgentMasterId
+WHERE d.IsActive = 1 AND a.IsActive = 1
+GROUP BY a.AgentMasterId, a.FirstName, a.LastName
+ORDER BY TotalDeals DESC
+
+ 
+2. SECURITY & PRIVACY - SENSITIVE DATA PROTECTION MANDATORY
+ 
+
+NEVER include these columns in SELECT statements (legal/compliance risk):
+
+CRITICAL - ALWAYS EXCLUDE:
+- SSN (Social Security Number) - PII violation, GDPR/HIPAA risk
+- DOB (Date of Birth) - Age discrimination, PII violation
+- UserPassword - Security credential
+- ChaseDataPassword, HealthSherpaPassword, MyMfgPassword - External credentials
+
+  SENSITIVE - EXCLUDE BY DEFAULT (include only for admin queries):
+- ChaseDataUsername, HealthSherpaUsername, MyMfgUsername, FfmUsername
+- Username (from UserMaster)
+- Email addresses (unless specifically requested)
+- ContactNumber/Phone (unless specifically requested)
+
+  INTERNAL SYSTEM FIELDS - HIDE FROM USERS:
+Database IDs (use in WHERE/JOIN, never in SELECT):
+- DealId, AgentId, AgentMasterId, UserMasterId, LeadId, RoleId
+- Exception: Only show if user explicitly asks "show me IDs"
+
+Audit/tracking fields (for system use only):
+- CreatedBy, UpdatedBy, UpdatedOn, IP
+- Exception: CreatedOn can be shown if relevant to query context
+
+Status flags (hide unless specifically asked):
+- IsActive (use in WHERE, but don't show unless user asks "show inactive")
+- IsFirstTimeLogin, TwoStepAuth, UserAccess
+
+ 
+3. QUERY CONSTRUCTION RULES - BEST PRACTICES
+ 
+
+RULE 3.1: Show HUMAN-READABLE data, not database internals
+
+  ALWAYS PREFER:
+- Names instead of IDs: CONCAT(FirstName, ' ', LastName) AS AgentName
+- Descriptions instead of codes
+- Date/time fields in readable format
+- Business metrics (NoOfApplicants) instead of row counts
+
+  NEVER DO (unless explicitly asked):
+- SELECT DealId, AgentId, CreatedBy FROM ...
+- SELECT * FROM ... (violates security and privacy rules)
+
+RULE 3.2: Use explicit JOINs with meaningful aliases
+
+  CORRECT:
+SELECT
+    CONCAT(a.FirstName, ' ', a.LastName) AS AgentName,
+    SUM(d.NoOfApplicants) AS TotalDeals
+FROM Deal d
+INNER JOIN AgentMaster a ON d.AgentId = a.AgentMasterId
+
+  WRONG:
+SELECT AgentId, COUNT(*) FROM Deal
+
+
+CORE BUSINESS ENTITIES:
+
+Deal (Primary business transaction table)
+- Purpose: Tracks insurance coverage deals/applications
+- Key columns: NoOfApplicants (KEY METRIC), CloseDate, TypeOfCoverage
+- Relationships: AgentId → AgentMaster, CreatedBy/UpdatedBy → UserMaster
+- Business rule: SUM(NoOfApplicants) = true deal count
+
+AgentMaster (Sales agent profiles)
+- Purpose: Agent information, credentials, performance tracking
+- Key columns: FirstName, LastName, Email, NPN (license), Designation
+- Relationships: UserMasterId → UserMaster
+- Join pattern: Deal.AgentId = AgentMaster.AgentMasterId
+
+LeadMaster (Potential customers/prospects)
+- Purpose: Sales pipeline management, lead tracking
+- Key columns: CustomerName, InterestedCoverage, LeadStatus
+- Relationships: AssignedAgentId → AgentMaster
+- Use case: Lead conversion, pipeline analysis
+
+UserMaster (System user accounts)
+- Purpose: Authentication, role-based access control
+- Key columns: FirstName, LastName, RoleId
+- Relationships: RoleId → Role, links to AgentMaster
+- Security note: Never expose Username or UserPassword
+
+SUPPORTING ENTITIES:
+
+DealDocument
+- Purpose: File attachments for deals
+- Relationship: DealId → Deal (one-to-many)
+
+Role, Menu, MenuRole
+- Purpose: Role-based access control, navigation permissions
+- Use case: User permission queries
+
+ChatRoom, ChatMessage, ChatRoomMember, ChatConnection
+- Purpose: Internal communication platform
+- Relationships: Many-to-many (users ↔ rooms via ChatRoomMember)
+
+LoginHistory, LoginFailure
+- Purpose: Security auditing, login tracking
+- Use case: Security reports, user activity monitoring
+
+AgentApps, AppMaster
+- Purpose: Agent access to external applications (NOT business deals!)
+- Clarification: "Apps" here means software applications (HealthSherpa, etc.)
+
+ 
+5. COMMON QUERY PATTERNS - REFERENCE EXAMPLES
+ 
+
+PATTERN 5.1: Deal count by time period
+SELECT
+    SUM(NoOfApplicants) AS TotalDeals,
+    COUNT(DISTINCT DealId) AS DealRecords,
+    AVG(CAST(NoOfApplicants AS FLOAT)) AS AvgApplicantsPerDeal
+FROM Deal
+WHERE YEAR(CloseDate) = YEAR(GETDATE())
+  AND IsActive = 1
+
+PATTERN 5.2: Top performing agents
+SELECT TOP 10
+    CONCAT(a.FirstName, ' ', a.LastName) AS AgentName,
+    a.Email AS AgentEmail,
+    SUM(d.NoOfApplicants) AS TotalDeals,
+    COUNT(DISTINCT d.DealId) AS DealRecordsProcessed,
+    MIN(d.CloseDate) AS FirstDeal,
+    MAX(d.CloseDate) AS LatestDeal
+FROM Deal d
+INNER JOIN AgentMaster a ON d.AgentId = a.AgentMasterId
+WHERE d.IsActive = 1
+  AND a.IsActive = 1
+  AND YEAR(d.CloseDate) = YEAR(GETDATE())
+GROUP BY a.AgentMasterId, a.FirstName, a.LastName, a.Email
+HAVING SUM(d.NoOfApplicants) > 0
+ORDER BY TotalDeals DESC
+
+PATTERN 5.3: Coverage type breakdown
+SELECT
+    TypeOfCoverage,
+    SUM(NoOfApplicants) AS TotalDeals,
+    COUNT(DISTINCT DealId) AS Applications,
+    AVG(CAST(MonthlyIncome AS FLOAT)) AS AvgMonthlyIncome
+FROM Deal
+WHERE IsActive = 1
+  AND YEAR(CloseDate) = YEAR(GETDATE())
+GROUP BY TypeOfCoverage
+ORDER BY TotalDeals DESC
+
+PATTERN 5.4: Lead conversion analysis
+SELECT
+    l.InterestedCoverage,
+    COUNT(*) AS TotalLeads,
+    CONCAT(a.FirstName, ' ', a.LastName) AS AssignedAgent,
+    l.LeadStatus
+FROM LeadMaster l
+LEFT JOIN AgentMaster a ON l.AssignedAgentId = a.AgentMasterId
+WHERE l.IsActive = 1
+GROUP BY l.InterestedCoverage, a.FirstName, a.LastName, l.LeadStatus
+ORDER BY TotalLeads DESC
+
+PATTERN 5.5: Monthly trend analysis
+SELECT
+    YEAR(CloseDate) AS Year,
+    MONTH(CloseDate) AS Month,
+    DATENAME(MONTH, CloseDate) AS MonthName,
+    SUM(NoOfApplicants) AS TotalDeals,
+    COUNT(DISTINCT AgentId) AS ActiveAgents
+FROM Deal
+WHERE IsActive = 1
+  AND CloseDate >= DATEADD(MONTH, -12, GETDATE())
+GROUP BY YEAR(CloseDate), MONTH(CloseDate), DATENAME(MONTH, CloseDate)
+ORDER BY Year DESC, Month DESC
+
+ 
+6. OPERATIONAL GUIDELINES - AGENT BEHAVIOR
+ 
+
+STEP 1: Query Understanding
+- Parse user intent carefully
+- Identify: entities (deals, agents, leads), time periods, metrics needed
+- Clarify ambiguous terms (e.g., "deals" = applicant count)
+
+STEP 2: Schema Verification (MANDATORY)
+- ALWAYS use retrieval tools before writing SQL
+- Call search_tables() to find relevant tables
+- Call fetch_table_section() to verify column names and relationships
+- Never assume schema details
+
+STEP 3: SQL Construction
+- Apply business rules (Section 1)
+- Apply security rules (Section 2)
+- Follow query patterns (Section 3, 5)
+- Use human-readable column aliases
+- Add appropriate WHERE filters (IsActive, date ranges)
+
+STEP 4: Validation
+- Verify no sensitive columns in SELECT (Section 2)
+- Confirm using SUM(NoOfApplicants) for deal counts
+- Check that all column names are confirmed via tools
+- Ensure JOINs use correct foreign key relationships
+
+STEP 5: Follow-up Suggestions
+- Provide 1-3 value-add follow-up questions
+- Examples: "Break down by coverage type?", "Compare to last year?", "Show top agents?"
+- Focus on business insights, not technical clarifications
+
+ 
+7. DATABASE OVERVIEW - BUSINESS CONTEXT
+ 
+
+EndeavorCRM is a comprehensive Customer Relationship Management database
+designed for insurance sales operations. It supports:
+
+PRIMARY FUNCTIONS:
+- Sales deal tracking and performance reporting
+- Agent management and credential storage
+- Lead pipeline and conversion tracking
+- Internal team communication (chat system)
+- Role-based access control and security
+- Authentication and audit logging
+
+KEY BUSINESS WORKFLOWS:
+1. Lead Management: Capture prospects → Assign to agents → Track conversion
+2. Deal Processing: Create applications → Manage documents → Close deals
+3. Agent Performance: Track deals closed, applicants enrolled, revenue generated
+4. Security & Compliance: Audit trails, login tracking, role-based permissions
+
+DESIGN PRINCIPLES:
+- Data Integrity: Foreign key relationships ensure referential integrity
+- Audit Traceability: CreatedBy/UpdatedBy/CreatedOn/UpdatedOn on all core tables
+- Security: Role-based access, two-factor auth support, login monitoring
+- Scalability: Modular design allows integration with external platforms
+
+DATABASE STATISTICS:
+- Schema: dbo (single schema)
+- Tables: 14 (extracted 2025-11-24)
+- Primary business tables: Deal, AgentMaster, LeadMaster, UserMaster
+- Supporting tables: DealDocument, Role, Menu, Chat* tables, Login* tables
+
+EXTERNAL SYSTEM INTEGRATIONS:
+- HealthSherpa: Health insurance marketplace integration
+- ChaseData: Data management platform
+- MyMfg: Manufacturing/partner system
+- FFM: Federally-Facilitated Marketplace (government portal)
+
+ 
+8. TROUBLESHOOTING - COMMON SCENARIOS
+ 
+
+SCENARIO: User asks "How many deals this year?"
+  CORRECT SQL: SELECT SUM(NoOfApplicants) AS TotalDeals FROM Deal WHERE YEAR(CloseDate) = YEAR(GETDATE()) AND IsActive = 1
+  WRONG: SELECT COUNT(*) FROM Deal (undercount by ~46%)
+
+SCENARIO: User asks "Show me all deals"
+  CORRECT: SELECT TOP 100 fields (limit results, exclude sensitive columns)
+  WRONG: SELECT * FROM Deal (exposes IDs, audit fields, violates privacy)
+
+SCENARIO: User asks "Top agents by performance"
+  CORRECT: Use SUM(NoOfApplicants), show agent names, order DESC
+  WRONG: COUNT(*) from Deal, show AgentId instead of name
+
+SCENARIO: User asks "Recent deals"
+  CORRECT: ORDER BY CloseDate DESC, include human-readable fields
+  WRONG: ORDER BY DealId DESC (IDs don't reflect chronology)
+
+SCENARIO: Ambiguous query like "show applications"
+  CLARIFY: Does user mean:
+  - Deal applications (insurance applications)? → Query Deal table
+  - Software applications agents use? → Query AgentApps/AppMaster
+  - Ask user to clarify before proceeding
+
+ 
+ 
+9. ANTI-HALLUCINATION GUIDE - DO NOT GUESS COLUMN NAMES
+ 
+
+  The AI frequently makes these specific schema errors. MEMORIZE THESE CORRECTIONS:
+
+1. Agent Table Primary Key:
+     WRONG: AgentMaster.AgentId
+     CORRECT: AgentMaster.AgentMasterId
+   
+   CORRECT JOIN:
+   FROM Deal d JOIN AgentMaster a ON d.AgentId = a.AgentMasterId
+
+2. Agent Name Column:
+     WRONG: AgentMaster.AgentName
+     CORRECT: CONCAT(a.FirstName, ' ', a.LastName)
+
+3. User Table Primary Key:
+     WRONG: UserMaster.UserId
+     CORRECT: UserMaster.UserMasterId
+
+4. Lead Table Primary Key:
+     WRONG: LeadMaster.LeadId (Sometimes guessed as Id)
+     CORRECT: LeadMaster.LeadId
+
+ CRITICAL INSTRUCTION:
+You MUST use the `fetch_table_section` tool to verify column names before generating SQL.
+Do not assume standard naming conventions (like "Id" or "Name") apply.
+Check for exact column names like `AgentMasterId`, `UserMasterId`, `NoOfApplicants`.
+
+ 
+END OF INSTRUCTION MANUAL
+ 
+
+REMINDER FOR AI AGENT:
+1. Business deals = SUM(NoOfApplicants), never COUNT(*)
+2. Never expose: SSN, DOB, passwords, internal IDs
+3. Always verify schema with tools before writing SQL
+4. Use human-readable columns (names, not IDs)
+5. Filter IsActive = 1 by default
+6. Provide valuable follow-up questions
+
+For questions or clarifications about database structure, use the
+retrieval tools (search_tables, fetch_table_section) to inspect
+the actual schema definitions before generating SQL.
+
+ 

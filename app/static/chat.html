@@ -57,8 +57,9 @@
       <form id="queryForm" class="input-area">
         <div class="input-wrapper">
           <select id="format" title="Output Format">
-            <option value="json" selected>JSON</option>
-            <option value="csv">CSV</option>
+            <option value="table" selected>Table + Chart</option>
+            <option value="json">JSON</option>
+            <option value="csv">CSV Only</option>
           </select>
           <input id="nlquery" type="text" placeholder="Ask a question about your data..." required autocomplete="off" />
         </div>
@@ -74,6 +75,8 @@
     </main>
   </div>
 
+  <!-- Chart.js for data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="/static/chat.js"></script>
 </body>
 

@@ -144,6 +144,180 @@
     return `<pre><code>${escapeHtml(jsonStr)}</code></pre>`;
   }
 
+  function csvToJson(csvText) {
+    if (!csvText) return [];
+
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const data = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const obj = {};
+      headers.forEach((header, index) => {
+        const value = values[index] || '';
+        // Try to parse as number
+        const numValue = parseFloat(value);
+        obj[header] = isNaN(numValue) ? value : numValue;
+      });
+      data.push(obj);
+    }
+
+    return data;
+  }
+
+  function isChartable(data) {
+    if (!data || data.length === 0) return false;
+
+    const keys = Object.keys(data[0]);
+    if (keys.length < 2) return false;
+
+    // Check if at least one column has numeric values
+    const hasNumeric = keys.some(key => {
+      return data.every(row => typeof row[key] === 'number');
+    });
+
+    return hasNumeric;
+  }
+
+  function renderChart(data, chartType = 'bar') {
+    const canvasId = 'chart_' + Date.now();
+    const keys = Object.keys(data[0]);
+    console.log("keys------------------------------------------------------------", keys);
+
+    // Find text column (for labels) and numeric column (for values)
+    let labelKey = keys[0];
+    let dataKey = keys.find(k => typeof data[0][k] === 'number') || keys[1];
+
+    // If first column is numeric, swap
+    if (typeof data[0][labelKey] === 'number' && keys.length > 1) {
+      labelKey = keys.find(k => typeof data[0][k] !== 'number') || keys[0];
+    }
+
+    const labels = data.map(row => String(row[labelKey]));
+    const values = data.map(row => parseFloat(row[dataKey]) || 0);
+
+    // Create toggle buttons for different chart types
+    const toggleButtonsId = 'toggle_' + Date.now();
+
+    const html = `
+      <div style="margin:1rem 0; padding:1rem; background:rgba(0,0,0,0.02); border-radius:0.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <strong style="color:var(--text-primary); font-size:0.875rem;">📊 Data Visualization</strong>
+          <div id="${toggleButtonsId}" style="display:flex; gap:0.5rem;">
+            <button class="chart-toggle" data-canvas="${canvasId}" data-type="bar" style="padding:0.25rem 0.75rem; border:1px solid var(--primary-color); background:var(--primary-color); color:white; border-radius:0.25rem; cursor:pointer; font-size:0.75rem; transition:all 0.2s;">Bar</button>
+            <button class="chart-toggle" data-canvas="${canvasId}" data-type="line" style="padding:0.25rem 0.75rem; border:1px solid var(--primary-color); background:white; color:var(--primary-color); border-radius:0.25rem; cursor:pointer; font-size:0.75rem; transition:all 0.2s;">Line</button>
+            <button class="chart-toggle" data-canvas="${canvasId}" data-type="pie" style="padding:0.25rem 0.75rem; border:1px solid var(--primary-color); background:white; color:var(--primary-color); border-radius:0.25rem; cursor:pointer; font-size:0.75rem; transition:all 0.2s;">Pie</button>
+            <button class="chart-toggle" data-canvas="${canvasId}" data-type="doughnut" style="padding:0.25rem 0.75rem; border:1px solid var(--primary-color); background:white; color:var(--primary-color); border-radius:0.25rem; cursor:pointer; font-size:0.75rem; transition:all 0.2s;">Doughnut</button>
+          </div>
+        </div>
+        <div style="max-width:700px; max-height:400px; margin:0 auto;">
+          <canvas id="${canvasId}"></canvas>
+        </div>
+      </div>
+    `;
+
+    // Render chart after DOM is ready
+    setTimeout(() => {
+      const ctx = document.getElementById(canvasId);
+      if (!ctx) return;
+
+      const chartConfig = {
+        type: chartType,
+        data: {
+          labels: labels,
+          datasets: [{
+            label: dataKey,
+            data: values,
+            backgroundColor: chartType === 'bar' || chartType === 'line'
+              ? 'rgba(59, 130, 246, 0.6)'
+              : values.map((_, i) => `hsla(${(i * 360) / values.length}, 70%, 60%, 0.8)`),
+            borderColor: chartType === 'line'
+              ? 'rgba(59, 130, 246, 1)'
+              : values.map((_, i) => `hsla(${(i * 360) / values.length}, 70%, 50%, 1)`),
+            borderWidth: 2,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: chartType === 'pie' || chartType === 'doughnut',
+              position: 'bottom'
+            },
+            title: {
+              display: true,
+              text: `${dataKey} by ${labelKey}`,
+              font: { size: 14, weight: '600' }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 12,
+              titleFont: { size: 13 },
+              bodyFont: { size: 12 }
+            }
+          },
+          scales: chartType === 'bar' || chartType === 'line' ? {
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(0,0,0,0.05)' }
+            },
+            x: {
+              grid: { display: false }
+            }
+          } : undefined
+        }
+      };
+
+      const myChart = new Chart(ctx, chartConfig);
+
+      // Add toggle functionality
+      document.querySelectorAll(`#${toggleButtonsId} .chart-toggle`).forEach(btn => {
+        btn.addEventListener('click', function () {
+          const newType = this.dataset.type;
+
+          // Update button styles
+          document.querySelectorAll(`#${toggleButtonsId} .chart-toggle`).forEach(b => {
+            b.style.background = 'white';
+            b.style.color = 'var(--primary-color)';
+          });
+          this.style.background = 'var(--primary-color)';
+          this.style.color = 'white';
+
+          // Update chart
+          myChart.config.type = newType;
+          myChart.options.plugins.legend.display = newType === 'pie' || newType === 'doughnut';
+          myChart.options.scales = (newType === 'bar' || newType === 'line') ? {
+            y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+            x: { grid: { display: false } }
+          } : undefined;
+
+          // Update colors
+          if (newType === 'pie' || newType === 'doughnut') {
+            myChart.data.datasets[0].backgroundColor = values.map((_, i) =>
+              `hsla(${(i * 360) / values.length}, 70%, 60%, 0.8)`
+            );
+            myChart.data.datasets[0].borderColor = values.map((_, i) =>
+              `hsla(${(i * 360) / values.length}, 70%, 50%, 1)`
+            );
+          } else {
+            myChart.data.datasets[0].backgroundColor = 'rgba(59, 130, 246, 0.6)';
+            myChart.data.datasets[0].borderColor = newType === 'line' ? 'rgba(59, 130, 246, 1)' : 'rgba(59, 130, 246, 0.6)';
+          }
+
+          myChart.update();
+        });
+      });
+    }, 100);
+
+    return html;
+  }
+
+
   queryForm.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const q = nlquery.value.trim();
@@ -216,7 +390,23 @@
 
       if (result.content) {
         if (result.filetype === 'csv') {
-          dataHtml = renderTable(result.content);
+          const tableHtml = renderTable(result.content);
+
+          // Try to render chart if data is numeric and chartable
+          try {
+            const jsonData = csvToJson(result.content);
+            if (jsonData.length > 0 && jsonData.length <= 50 && isChartable(jsonData)) {
+              // Render chart above table for chartable data
+              dataHtml = renderChart(jsonData, 'bar') + tableHtml;
+            } else {
+              // Just table if not chartable or too many rows
+              dataHtml = tableHtml;
+            }
+          } catch (e) {
+            console.warn('Chart rendering skipped:', e);
+            dataHtml = tableHtml;
+          }
+
           dataHtml += createDownloadButton(result.content, 'query_results.csv', 'text/csv', '📥 Download CSV');
         } else {
           try {
